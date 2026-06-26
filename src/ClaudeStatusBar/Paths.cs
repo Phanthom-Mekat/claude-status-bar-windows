@@ -15,6 +15,7 @@ public static class Paths
     public static string StateJson => Path.Combine(StatusbarDir, "state.json");
     public static string SessionsDir => Path.Combine(StatusbarDir, "sessions.d");
     public static string AppPathTxt => Path.Combine(StatusbarDir, "apppath.txt");
+    public static string AppPidTxt => Path.Combine(StatusbarDir, "apppid.txt");
     public static string AppSettingsJson => Path.Combine(StatusbarDir, "app-settings.json");
     public static string ClaudeSettingsJson => Path.Combine(Home, ".claude", "settings.json");
 

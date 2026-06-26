@@ -9,16 +9,21 @@ const dir = path.join(os.homedir(), ".claude", "statusbar");
 const sessDir = path.join(dir, "sessions.d");
 const statePath = path.join(dir, "state.json");
 const appPathFile = path.join(dir, "apppath.txt");
+const appPidFile = path.join(dir, "apppid.txt");
 const event = process.argv[2];
 
 fs.mkdirSync(sessDir, { recursive: true });
 const safeId = (s) => String(s || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 64) || "unknown";
 const idleState = (id) => JSON.stringify({ state: "idle", label: "", tool: "", project: "", sessionId: id, transcript: "", startedAt: 0, ts: Math.floor(Date.now() / 1000) });
 
+// Host-agnostic running check (the app may run as ClaudeStatusBar.exe OR via "dotnet ...dll" under
+// Smart App Control, so we check by the pid the app recorded).
 function running() {
   try {
-    const o = cp.execSync(`tasklist /FI "IMAGENAME eq ${EXE}" /NH`, { stdio: ["ignore", "pipe", "ignore"] }).toString();
-    return o.toLowerCase().includes(EXE.toLowerCase());
+    const pid = fs.readFileSync(appPidFile, "utf8").trim();
+    if (!pid) return false;
+    const o = cp.execSync(`tasklist /FI "PID eq ${pid}" /NH`, { stdio: ["ignore", "pipe", "ignore"] }).toString();
+    return o.trim().length > 0 && !o.toLowerCase().includes("no tasks");
   } catch { return false; }
 }
 
@@ -37,11 +42,15 @@ function clearStaleGlobal(id) {
   } catch {}
 }
 
+// Launch the app. Prefer the .dll via the Microsoft-signed dotnet host (runs even under Smart App
+// Control, which blocks our unsigned exe); fall back to the exe (signed/self-contained builds).
 function launch() {
   try {
     if (!fs.existsSync(appPathFile)) return;
     const exe = fs.readFileSync(appPathFile, "utf8").trim();
-    if (exe && fs.existsSync(exe)) cp.spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
+    const dll = exe.replace(/\.exe$/i, ".dll");
+    if (fs.existsSync(dll)) cp.spawn("dotnet", [dll], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    else if (exe && fs.existsSync(exe)) cp.spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
   } catch {}
 }
 

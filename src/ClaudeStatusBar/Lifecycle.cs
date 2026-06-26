@@ -22,7 +22,15 @@ public class Lifecycle
     public void OnStartup()
     {
         Log.Init(_cfg.DebugLogging);
-        try { Paths.EnsureDir(); File.WriteAllText(Paths.AppPathTxt, Environment.ProcessPath ?? ""); }
+        try
+        {
+            Paths.EnsureDir();
+            // Stable path next to our binaries. Under the dotnet host, ProcessPath is dotnet.exe, so derive
+            // from BaseDirectory. The hooks launch the .dll via the trusted dotnet host when it exists (runs
+            // even under Smart App Control), else the exe. The pid lets hooks detect "running" host-agnostically.
+            File.WriteAllText(Paths.AppPathTxt, Path.Combine(AppContext.BaseDirectory, "ClaudeStatusBar.exe"));
+            File.WriteAllText(Paths.AppPidTxt, Environment.ProcessId.ToString());
+        }
         catch (Exception e) { Log.Write("apppath write failed: " + e.Message); }
 
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0";

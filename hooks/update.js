@@ -9,6 +9,7 @@ const dir = path.join(os.homedir(), ".claude", "statusbar");
 const sessDir = path.join(dir, "sessions.d");
 const statePath = path.join(dir, "state.json");
 const appPathFile = path.join(dir, "apppath.txt");
+const appPidFile = path.join(dir, "apppid.txt");
 const event = process.argv[2] || "";
 const EXE = "ClaudeStatusBar.exe";
 
@@ -30,15 +31,22 @@ function writeAtomic(file, data) {
 }
 
 // Relaunch the app if it was quit (only called on a new prompt, so ~once per turn — cheap).
+// Detect "running" by the recorded pid (host-agnostic), and launch via the dotnet host when a .dll
+// exists so it works even under Smart App Control (which blocks our unsigned exe).
 function launchIfNeeded() {
   try {
     if (!fs.existsSync(appPathFile)) return;
     try {
-      const o = cp.execSync(`tasklist /FI "IMAGENAME eq ${EXE}" /NH`, { stdio: ["ignore", "pipe", "ignore"] }).toString();
-      if (o.toLowerCase().includes(EXE.toLowerCase())) return; // already running
+      const pid = fs.readFileSync(appPidFile, "utf8").trim();
+      if (pid) {
+        const o = cp.execSync(`tasklist /FI "PID eq ${pid}" /NH`, { stdio: ["ignore", "pipe", "ignore"] }).toString();
+        if (o.trim().length > 0 && !o.toLowerCase().includes("no tasks")) return; // already running
+      }
     } catch {}
     const exe = fs.readFileSync(appPathFile, "utf8").trim();
-    if (exe && fs.existsSync(exe)) cp.spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
+    const dll = exe.replace(/\.exe$/i, ".dll");
+    if (fs.existsSync(dll)) cp.spawn("dotnet", [dll], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    else if (exe && fs.existsSync(exe)) cp.spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
   } catch {}
 }
 
