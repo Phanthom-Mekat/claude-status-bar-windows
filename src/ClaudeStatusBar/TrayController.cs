@@ -21,6 +21,8 @@ public class TrayController : ApplicationContext
     ToolStripMenuItem _versionItem = null!;
     bool _updateShown;
     readonly List<ToolStripItem> _sessionRows = new();
+    readonly List<(ToolStripMenuItem item, StatusState s)> _sessionItemMap = new();
+    string? _pinnedSid; // when set, the pill/tray follow this session instead of the auto "busiest"
 
     Lifecycle _life = null!;
     OverlayPill? _pill;
@@ -93,6 +95,7 @@ public class TrayController : ApplicationContext
     {
         foreach (var it in _sessionRows) _menu.Items.Remove(it);
         _sessionRows.Clear();
+        _sessionItemMap.Clear();
 
         var sessions = _agg.LiveSessions();
         if (sessions.Count == 0) return;
@@ -100,16 +103,20 @@ public class TrayController : ApplicationContext
         int idx = 2; // after [0] header + [1] separator
         void Insert(ToolStripItem it) { _menu.Items.Insert(idx++, it); _sessionRows.Add(it); }
 
-        Insert(new ToolStripMenuItem("Sessions") { Enabled = false });
+        Insert(new ToolStripMenuItem(_pinnedSid == null ? "Sessions" : "Sessions (following one — click to unpin)") { Enabled = false });
         int shown = 0;
         foreach (var s in sessions)
         {
             if (shown >= 8) { Insert(new ToolStripMenuItem($"   +{sessions.Count - shown} more") { Enabled = false }); break; }
-            var item = new ToolStripMenuItem("   " + FormatSession(s));
-            var cwd = s.Cwd;
-            if (!string.IsNullOrEmpty(cwd) && Directory.Exists(cwd)) { item.ToolTipText = cwd; item.Click += (_, _) => OpenFolder(cwd); }
-            else item.Enabled = false;
+            var sid = s.SessionId;
+            var item = new ToolStripMenuItem("   " + FormatSession(s))
+            {
+                Checked = _pinnedSid == sid,
+                ToolTipText = "Click to show this session in the status (click again to follow the busiest)",
+            };
+            item.Click += (_, _) => { _pinnedSid = _pinnedSid == sid ? null : sid; Tick(); };
             Insert(item);
+            _sessionItemMap.Add((item, s));
             shown++;
         }
         Insert(new ToolStripSeparator());
@@ -128,12 +135,6 @@ public class TrayController : ApplicationContext
         string proj = string.IsNullOrEmpty(s.Project) ? "—" : s.Project;
         string t = (s.State is "tool" or "thinking") && s.StartedAt > 0 ? "  ·  " + Elapsed(s.StartedAt) : "";
         return $"{proj}  ·  {st}{t}";
-    }
-
-    void OpenFolder(string path)
-    {
-        try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
-        catch (Exception ex) { Log.Write("open folder failed: " + ex.Message); }
     }
 
     static ToolStripMenuItem Section(string title) => new(title) { Enabled = false };
@@ -190,8 +191,20 @@ public class TrayController : ApplicationContext
         _life.CheckLifecycle();
         var (st, active) = _agg.Read();
         _activeCount = active;
+
+        // If the user pinned a session from the menu, follow it instead of the auto "busiest".
+        if (_pinnedSid != null)
+        {
+            var pinned = _agg.LiveSessions().FirstOrDefault(s => s.SessionId == _pinnedSid);
+            if (pinned != null) st = pinned; else _pinnedSid = null; // pinned session ended -> back to auto
+        }
+
         Evaluate(st);
         MaybeShowUpdate();
+
+        // Keep the open menu's session timers ticking (update text in place, no rebuild = no flicker).
+        if (_menu.Visible)
+            foreach (var (item, s) in _sessionItemMap) item.Text = "   " + FormatSession(s);
     }
 
     void MaybeShowUpdate()
