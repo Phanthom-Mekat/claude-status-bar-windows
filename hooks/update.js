@@ -74,7 +74,7 @@ process.stdin.on("end", () => {
     default: return;
   }
 
-  const out = { state, label, tool: p.tool_name || "", project, sessionId: p.session_id || "", transcript: p.transcript_path || prev.transcript || "", startedAt, ts };
+  const out = { state, label, tool: p.tool_name || "", project, cwd: p.cwd || prev.cwd || "", sessionId: p.session_id || "", transcript: p.transcript_path || prev.transcript || "", startedAt, ts };
   const json = JSON.stringify(out);
   try {
     fs.mkdirSync(sessDir, { recursive: true });

@@ -13,5 +13,9 @@ public record StatusState(
     [property: JsonPropertyName("startedAt")] long StartedAt,
     [property: JsonPropertyName("ts")] long Ts)
 {
+    /// <summary>Full working directory of the session (for the "open folder" menu action). Not positional
+    /// so existing 8-arg constructor calls keep working; deserialized from the "cwd" field.</summary>
+    [JsonPropertyName("cwd")] public string Cwd { get; init; } = "";
+
     public static StatusState Idle => new("idle", "", "", "", "", "", 0, 0);
 }

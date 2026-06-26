@@ -44,6 +44,25 @@ public class SessionAggregatorTests
     }
 
     [Fact]
+    public void OrderBusiestFirst()
+    {
+        var states = new[] { S("idle", "a", 400), S("tool", "b", 410, 400, "p"), S("permission", "c", 405) };
+        var ordered = SessionAggregator.Order(states, now: 500);
+        Assert.Equal("permission", ordered[0].State);
+        Assert.Equal("tool", ordered[1].State);
+        Assert.Equal("idle", ordered[2].State);
+    }
+
+    [Fact]
+    public void OrderDemotesStaleToIdle()
+    {
+        var states = new[] { S("thinking", "a", 1000), S("tool", "b", 1990, 1980, "p") };
+        var ordered = SessionAggregator.Order(states, now: 2000); // a is 1000s old -> stale -> idle, sorts last
+        Assert.Equal("tool", ordered[0].State);
+        Assert.Equal("idle", ordered[1].State);
+    }
+
+    [Fact]
     public void SameSessionDedupedByBusiest()
     {
         // legacy global + per-session for the same id: take the busier, count once

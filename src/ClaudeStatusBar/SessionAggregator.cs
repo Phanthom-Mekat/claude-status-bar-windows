@@ -48,6 +48,29 @@ public class SessionAggregator
         return (best, active);
     }
 
+    /// <summary>All live sessions (one per sessions.d file), busiest-first, for the menu's Sessions list.</summary>
+    public List<StatusState> LiveSessions()
+    {
+        var list = new List<StatusState>();
+        try
+        {
+            if (Directory.Exists(Paths.SessionsDir))
+                foreach (var f in Directory.GetFiles(Paths.SessionsDir))
+                {
+                    var name = Path.GetFileName(f);
+                    var s = Parse(f) ?? StatusState.Idle with { SessionId = name, Ts = ToUnix(File.GetLastWriteTimeUtc(f)) };
+                    if (string.IsNullOrEmpty(s.SessionId)) s = s with { SessionId = name };
+                    list.Add(s);
+                }
+        }
+        catch { }
+        return Order(list, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+    }
+
+    /// <summary>Pure: drop stale/interrupted to idle, then sort busiest-first (ties by most-recent).</summary>
+    public static List<StatusState> Order(IEnumerable<StatusState> states, long now) =>
+        states.Select(s => Effective(s, now)).OrderByDescending(Pri).ThenByDescending(s => s.Ts).ToList();
+
     static StatusState? Parse(string path)
     {
         try

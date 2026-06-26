@@ -20,6 +20,7 @@ public class TrayController : ApplicationContext
     ToolStripMenuItem _overlayItem = null!;
     ToolStripMenuItem _versionItem = null!;
     bool _updateShown;
+    readonly List<ToolStripItem> _sessionRows = new();
 
     Lifecycle _life = null!;
     OverlayPill? _pill;
@@ -83,7 +84,56 @@ public class TrayController : ApplicationContext
         _menu.Items.Add(_versionItem);
         _menu.Items.Add("Quit", null, (_, _) => { _tray.Visible = false; ExitThread(); });
 
+        _menu.Opening += (_, _) => RebuildSessions(); // refresh the live session list only when the menu opens
         _tray.ContextMenuStrip = _menu;
+    }
+
+    // Rebuilds the "Sessions" rows (inserted right after the status header) each time the menu opens.
+    void RebuildSessions()
+    {
+        foreach (var it in _sessionRows) _menu.Items.Remove(it);
+        _sessionRows.Clear();
+
+        var sessions = _agg.LiveSessions();
+        if (sessions.Count == 0) return;
+
+        int idx = 2; // after [0] header + [1] separator
+        void Insert(ToolStripItem it) { _menu.Items.Insert(idx++, it); _sessionRows.Add(it); }
+
+        Insert(new ToolStripMenuItem("Sessions") { Enabled = false });
+        int shown = 0;
+        foreach (var s in sessions)
+        {
+            if (shown >= 8) { Insert(new ToolStripMenuItem($"   +{sessions.Count - shown} more") { Enabled = false }); break; }
+            var item = new ToolStripMenuItem("   " + FormatSession(s));
+            var cwd = s.Cwd;
+            if (!string.IsNullOrEmpty(cwd) && Directory.Exists(cwd)) { item.ToolTipText = cwd; item.Click += (_, _) => OpenFolder(cwd); }
+            else item.Enabled = false;
+            Insert(item);
+            shown++;
+        }
+        Insert(new ToolStripSeparator());
+    }
+
+    static string FormatSession(StatusState s)
+    {
+        string st = s.State switch
+        {
+            "permission" => "Awaiting permission",
+            "tool" => string.IsNullOrEmpty(s.Label) ? "Working" : s.Label,
+            "thinking" => "Thinking…",
+            "waiting" => "Waiting",
+            _ => "idle",
+        };
+        string proj = string.IsNullOrEmpty(s.Project) ? "—" : s.Project;
+        string t = (s.State is "tool" or "thinking") && s.StartedAt > 0 ? "  ·  " + Elapsed(s.StartedAt) : "";
+        return $"{proj}  ·  {st}{t}";
+    }
+
+    void OpenFolder(string path)
+    {
+        try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Write("open folder failed: " + ex.Message); }
     }
 
     static ToolStripMenuItem Section(string title) => new(title) { Enabled = false };
