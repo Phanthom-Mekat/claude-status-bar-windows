@@ -18,6 +18,8 @@ public class TrayController : ApplicationContext
     readonly ToolStripMenuItem _header = new("Idle") { Enabled = false };
     ContextMenuStrip _menu = null!;
     ToolStripMenuItem _overlayItem = null!;
+    ToolStripMenuItem _versionItem = null!;
+    bool _updateShown;
 
     Lifecycle _life = null!;
     OverlayPill? _pill;
@@ -77,7 +79,8 @@ public class TrayController : ApplicationContext
 
         _menu.Items.Add(new ToolStripSeparator());
         var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.0";
-        _menu.Items.Add(new ToolStripMenuItem("Version " + ver) { Enabled = false });
+        _versionItem = new ToolStripMenuItem("Version " + ver) { Enabled = false };
+        _menu.Items.Add(_versionItem);
         _menu.Items.Add("Quit", null, (_, _) => { _tray.Visible = false; ExitThread(); });
 
         _tray.ContextMenuStrip = _menu;
@@ -107,8 +110,8 @@ public class TrayController : ApplicationContext
 
     void CreatePill()
     {
-        _pill = new OverlayPill(_cfg) { ContextMenuStrip = _menu };
-        _pill.Clicked = () => _menu.Show(Control.MousePosition);
+        _pill = new OverlayPill(_cfg);
+        _pill.Clicked = () => _pill!.ShowMenu(_menu);
         _pill.CloseRequested = () => { _overlayItem.Checked = false; _cfg.ShowOverlay = false; _cfg.Save(); _pill?.Hide(); };
         _pill.Show();
     }
@@ -138,6 +141,25 @@ public class TrayController : ApplicationContext
         var (st, active) = _agg.Read();
         _activeCount = active;
         Evaluate(st);
+        MaybeShowUpdate();
+    }
+
+    void MaybeShowUpdate()
+    {
+        if (_updateShown) return;
+        var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "";
+        if (!UpdateChecker.UpdateAvailable(_cfg, ver)) return;
+        _updateShown = true;
+        _versionItem.Text = $"⬆ Update available: v{_cfg.LatestVersion}";
+        _versionItem.Enabled = true;
+        _versionItem.Click += (_, _) => OpenReleases();
+        ShowTip($"Update available: v{_cfg.LatestVersion} — open the tray menu to get it.");
+    }
+
+    void OpenReleases()
+    {
+        try { Process.Start(new ProcessStartInfo($"https://github.com/{UpdateChecker.Repo}/releases/latest") { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Write("open releases failed: " + ex.Message); }
     }
 
     public void Evaluate(StatusState s)

@@ -177,12 +177,21 @@ public class OverlayPill : Form
     }
     void OnUp(object? s, MouseEventArgs e)
     {
+        if (e.Button == MouseButtons.Right) { Clicked?.Invoke(); _down = false; return; }
         if (_down && !_moved && e.Button == MouseButtons.Left)
         {
             if (CloseRect.Contains(e.Location)) CloseRequested?.Invoke();
             else Clicked?.Invoke();
         }
         _down = false;
+    }
+
+    /// <summary>Show a context menu anchored at the cursor. Foregrounds this window first so the menu
+    /// dismisses when you click elsewhere (a no-activate owner otherwise leaves it stuck open).</summary>
+    public void ShowMenu(ContextMenuStrip menu)
+    {
+        SetForegroundWindow(Handle);
+        menu.Show(Control.MousePosition);
     }
 
     protected override void OnMove(EventArgs e)
@@ -201,4 +210,5 @@ public class OverlayPill : Form
     static readonly IntPtr HWND_TOPMOST = new(-1);
     const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
 }
