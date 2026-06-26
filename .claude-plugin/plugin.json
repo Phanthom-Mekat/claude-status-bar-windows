@@ -1,0 +1,7 @@
+{
+  "name": "claude-status-bar-windows",
+  "displayName": "Claude Status Bar for Windows",
+  "version": "0.3.0",
+  "description": "System-tray status indicator for Claude Code on Windows: animated icon, awaiting-permission dot, elapsed timer, and an always-on-top status pill.",
+  "license": "MIT"
+}

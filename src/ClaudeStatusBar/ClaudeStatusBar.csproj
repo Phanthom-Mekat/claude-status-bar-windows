@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>ClaudeStatusBar</AssemblyName>
+    <RootNamespace>ClaudeStatusBar</RootNamespace>
+    <Version>0.3.0</Version>
+    <Product>Claude Status Bar</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Artwork (extracted from the macOS sources by tools/extract-assets.mjs) -->
+    <EmbeddedResource Include="Resources\*.png" />
+    <!-- Hook scripts embedded so the portable exe is self-sufficient; HookInstaller writes them out. -->
+    <EmbeddedResource Include="..\..\hooks\update.js" Link="hooks\update.js" />
+    <EmbeddedResource Include="..\..\hooks\lifecycle.js" Link="hooks\lifecycle.js" />
+  </ItemGroup>
+</Project>

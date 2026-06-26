@@ -1,0 +1,15 @@
+{
+  "name": "claude-status-bar-windows",
+  "owner": { "name": "Phanthom-Mekat" },
+  "description": "System-tray status indicator for Claude Code on Windows.",
+  "plugins": [
+    {
+      "name": "claude-status-bar-windows",
+      "displayName": "Claude Status Bar for Windows",
+      "source": "./",
+      "description": "System-tray indicator for Claude Code on Windows: animated icon, permission dot, elapsed timer, always-on-top status pill, and open/close lifecycle.",
+      "version": "0.3.0",
+      "license": "MIT"
+    }
+  ]
+}

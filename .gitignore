@@ -1,0 +1,42 @@
+# --- .NET build output ---
+[Bb]in/
+[Oo]bj/
+build/
+publish/
+artifacts/
+*.user
+*.suo
+*.userprefs
+.vs/
+
+# Published / portable binaries (released via GitHub Releases, not committed)
+*.exe
+*.pdb
+*.dll
+*.zip
+
+# NuGet
+*.nupkg
+packages/
+
+# --- Node (hooks dev) ---
+node_modules/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# --- Runtime artifacts (created under the user profile, never in-repo, but ignore if copied here) ---
+*.log
+state.json
+app-settings.json
+
+# --- Internal docs (kept private — not published) ---
+CLAUDE.md
+ROADMAP.md
+PRD.md
+docs/

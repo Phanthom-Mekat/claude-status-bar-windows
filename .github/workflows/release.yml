@@ -1,0 +1,35 @@
+name: release
+
+# Build the portable exe and attach it to a GitHub Release whenever you push a version tag:
+#   git tag v0.3.0 && git push origin v0.3.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}   # also runnable by hand from the Actions tab
+
+permissions:
+  contents: write          # needed to create the release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet test tests/ClaudeStatusBar.Tests -c Release
+
+      - name: Publish portable exe (win-x64, self-contained)
+        run: >
+          dotnet publish src/ClaudeStatusBar -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true -o out
+
+      - name: Create / update the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/ClaudeStatusBar.exe
+          generate_release_notes: true

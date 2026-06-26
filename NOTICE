@@ -1,0 +1,12 @@
+NOTICE — third-party attributions
+
+The Claude Code hook scripts (hooks/update.js, hooks/lifecycle.js) and the tray
+icon frames (src/ClaudeStatusBar/Resources/) were adapted from:
+
+  claude-status-bar — Copyright (c) Mick Cesanek — MIT License
+  https://github.com/m1ckc3s/claude-status-bar
+
+Used under the terms of the MIT License.
+
+"Claude" and the Claude spark logo are trademarks of Anthropic, used nominatively.
+This project is unofficial and is not affiliated with or endorsed by Anthropic.
