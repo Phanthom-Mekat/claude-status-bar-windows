@@ -51,6 +51,7 @@ Under the hood each session writes its own state file and the app aggregates the
 - Windows 11 (Windows 10 likely works; not a v1 target)
 - [Claude Code](https://claude.com/claude-code) (CLI or the Desktop app)
 - Node.js (already required by Claude Code)
+- .NET 8 Desktop Runtime — the installer adds it automatically if missing
 
 ## Install
 
@@ -62,13 +63,15 @@ In PowerShell:
 irm https://raw.githubusercontent.com/Phanthom-Mekat/claude-status-bar-windows/main/install.ps1 | iex
 ```
 
-This downloads the latest `ClaudeStatusBar.exe` from Releases, sets it to run at login, and launches it once (which installs the Claude Code hooks). Then **keep the icon always visible:** drag it from the `^` overflow into the tray, or **Settings → Personalization → Taskbar → Other system tray icons → toggle Claude Status Bar ON** (Windows 11 makes this a user choice). Start a Claude Code session and the icon reacts.
+This installs the .NET 8 Desktop Runtime if needed (via `winget`), downloads the app, sets it to run at login, and launches it (which installs the Claude Code hooks). The app runs through Microsoft's **signed `.NET` host**, so it works **even under Windows Smart App Control** — no security block and no "unknown publisher" warning. Then **keep the icon always visible:** drag it from the `^` overflow into the tray, or **Settings → Personalization → Taskbar → Other system tray icons → toggle Claude Status Bar ON**. Start a Claude Code session and the icon reacts.
 
-> SmartScreen may warn for an unsigned app → **More info → Run anyway**.
+### Option B — Manual
 
-### Option B — Manual download
+Download `ClaudeStatusBar.zip` from the [Releases](../../releases) page, extract it (e.g. to `%LOCALAPPDATA%\ClaudeStatusBar`), and run it via the .NET host:
 
-Download `ClaudeStatusBar.exe` from the [Releases](../../releases) page and run it once (it wires up the hooks and remembers its location).
+```powershell
+dotnet "$env:LOCALAPPDATA\ClaudeStatusBar\ClaudeStatusBar.dll"
+```
 
 ### Option C — Claude Code plugin (hooks only)
 
@@ -77,7 +80,7 @@ Download `ClaudeStatusBar.exe` from the [Releases](../../releases) page and run 
 /plugin install claude-status-bar-windows@claude-status-bar-windows
 ```
 
-The plugin installs the hooks but not the app — run `ClaudeStatusBar.exe` once so it can auto-launch later.
+The plugin installs the hooks but not the app — run it once (Option A or B) so it can auto-launch later.
 
 ## How it works
 

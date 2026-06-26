@@ -1,7 +1,9 @@
 name: release
 
-# Build the portable exes (x64 + arm64) and attach them to a GitHub Release on a version tag:
-#   git tag v0.3.1 && git push origin v0.3.1
+# Build the framework-dependent app bundle and attach it to a GitHub Release on a version tag:
+#   git tag v0.4.0 && git push origin v0.4.0
+# Framework-dependent (loose .dll) so it can be launched via the Microsoft-signed `dotnet` host,
+# which runs even under Windows Smart App Control (no signing needed). One bundle works on x64 + arm64.
 on:
   push:
     tags: ['v*']
@@ -23,21 +25,14 @@ jobs:
       - name: Test
         run: dotnet test tests/ClaudeStatusBar.Tests -c Release
 
-      - name: Publish x64
-        run: dotnet publish src/ClaudeStatusBar -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out-x64
+      - name: Publish (framework-dependent, portable)
+        run: dotnet publish src/ClaudeStatusBar -c Release -o out
 
-      - name: Publish arm64
-        run: dotnet publish src/ClaudeStatusBar -c Release -r win-arm64 --self-contained -p:PublishSingleFile=true -o out-arm64
-
-      - name: Stage release assets
-        run: |
-          Copy-Item out-x64/ClaudeStatusBar.exe ClaudeStatusBar.exe
-          Copy-Item out-arm64/ClaudeStatusBar.exe ClaudeStatusBar-arm64.exe
+      - name: Zip the app bundle
+        run: Compress-Archive -Path out/* -DestinationPath ClaudeStatusBar.zip -Force
 
       - name: Create / update the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ClaudeStatusBar.exe
-            ClaudeStatusBar-arm64.exe
+          files: ClaudeStatusBar.zip
           generate_release_notes: true
