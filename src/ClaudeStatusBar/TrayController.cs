@@ -275,9 +275,9 @@ public class TrayController : ApplicationContext
         var full = status + suffix;
         _tray.Text = full.Length > 63 ? full[..63] : full;
 
-        // Keep the pill short: show the session name only when >1 session is active (to disambiguate); no "+N".
-        string who = !string.IsNullOrEmpty(s.Name) ? s.Name : s.Project;
-        string proj = (active && sessions > 1) ? Short(who, 16) : "";
+        // Main status (pill) shows only the project when >1 session is active — never the session/tab name
+        // (that lives in the right-click Sessions list).
+        string proj = (active && sessions > 1) ? Short(s.Project, 16) : "";
         _pill?.SetText(active ? status : "", proj, (_cfg.ShowTimer && active) ? _startedAt : 0, eff == "permission");
     }
 
