@@ -84,6 +84,18 @@ public class Lifecycle
         catch { return 0; }
     }
 
+    // Keep the app alive while Claude has been active recently (state.json was written within `sec`),
+    // so it doesn't self-quit mid-work even if the session markers churn.
+    public static bool RecentStateActivity(int sec)
+    {
+        try
+        {
+            return File.Exists(Paths.StateJson) &&
+                   (DateTime.UtcNow - File.GetLastWriteTimeUtc(Paths.StateJson)).TotalSeconds < sec;
+        }
+        catch { return false; }
+    }
+
     // Sessions with RECENT activity. update.js touches sessions.d/<sid> on every hook event, so the
     // marker's mtime is "last activity"; only fresh ones count as active (fixes the inflated "+N").
     public static int ActiveSessionCount(int withinSec = 90)
@@ -117,7 +129,7 @@ public class Lifecycle
     {
         if ((DateTime.UtcNow - _launched).TotalSeconds < LaunchGraceSec) return;
         PruneOrphans();
-        bool needed = SessionCount() > 0 || ClaudeDesktopRunning();
+        bool needed = SessionCount() > 0 || ClaudeDesktopRunning() || RecentStateActivity(600);
         if (needed) { _notNeededSince = null; return; }
         _notNeededSince ??= DateTime.UtcNow;
         if ((DateTime.UtcNow - _notNeededSince.Value).TotalSeconds >= IdleQuitSec)

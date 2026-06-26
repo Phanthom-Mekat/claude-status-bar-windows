@@ -150,10 +150,15 @@ public class OverlayPill : Form
 
     void RestorePosition()
     {
+        // Validate against full screen Bounds (NOT WorkingArea) so a position the user dragged ONTO
+        // the taskbar is kept instead of being bounced back above it on every relaunch.
         var p = new Point(_cfg.OverlayX, _cfg.OverlayY);
-        bool onScreen = _cfg.OverlayX >= 0 && Screen.AllScreens.Any(s => s.WorkingArea.Contains(p));
-        if (onScreen) Location = p;
-        else { var wa = Screen.PrimaryScreen!.WorkingArea; Location = new Point(wa.Right - Width - 16, wa.Bottom - Height - 12); }
+        if (_cfg.OverlayX >= 0 && Screen.AllScreens.Any(s => s.Bounds.Contains(p))) { Location = p; return; }
+
+        // Default: snug just ABOVE the taskbar, bottom-right — always visible. (A floating window can't
+        // reliably sit ON the taskbar; the taskbar is always-on-top and would cover it.)
+        var wa = Screen.PrimaryScreen!.WorkingArea;
+        Location = new Point(wa.Right - Width - 12, wa.Bottom - Height);
     }
 
     void OnDown(object? s, MouseEventArgs e)

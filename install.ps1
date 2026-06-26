@@ -7,9 +7,10 @@
 $ErrorActionPreference = 'Stop'
 $Repo = 'Phanthom-Mekat/claude-status-bar-windows'
 
-$dest = Join-Path $env:LOCALAPPDATA 'ClaudeStatusBar'
-$exe  = Join-Path $dest 'ClaudeStatusBar.exe'
-$url  = "https://github.com/$Repo/releases/latest/download/ClaudeStatusBar.exe"
+$dest  = Join-Path $env:LOCALAPPDATA 'ClaudeStatusBar'
+$exe   = Join-Path $dest 'ClaudeStatusBar.exe'
+$asset = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'ClaudeStatusBar-arm64.exe' } else { 'ClaudeStatusBar.exe' }
+$url   = "https://github.com/$Repo/releases/latest/download/$asset"
 
 Write-Host "Installing Claude Status Bar..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
