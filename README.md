@@ -1,6 +1,6 @@
 # Claude Status Bar for Windows
 
-![Claude Status Bar for Windows](https://i.postimg.cc/KzDZ75WG/image.png)
+![Claude Status Bar for Windows](https://i.postimg.cc/Hk2y6Q7D/Screenshot-2026-06-26-171821.png)
 
 A tiny Windows **system-tray** app that shows **Claude Code's live status**: an animated Claude icon while it's thinking or running a tool, a yellow dot when it's awaiting your permission, and the elapsed time of the current turn. Lightweight, no window by default, no taskbar clutter.
 
@@ -27,6 +27,24 @@ Optional extras (configurable from the right-click menu): an always-on-top **tex
 | Claude Desktop — **Code** tab | ✅ (to verify on Windows) |
 | Claude Desktop — **Chat** tab | ❌ |
 | Cowork | ❌ |
+
+## Multiple sessions
+
+Running several Claude Code sessions at once is fully supported. Each session is tracked independently, and the app keeps one calm, glanceable indicator instead of fighting over a single icon:
+
+- **The icon follows the busiest session** — priority is **awaiting permission → working → thinking → idle** (so if one session needs your approval while another is editing, you see the yellow dot). The pill shows an **"N active"** count when more than one is running.
+- **See them all in the right-click menu** — a **Sessions** list shows every live session with its project, state, and a live-ticking timer:
+
+  ```
+  Sessions
+     myproj  ·  Editing · 1m 2s
+     api     ·  Awaiting permission
+     docs    ·  idle
+  ```
+
+- **Pin one to the status** — click a session in that list to make the icon and pill follow *that* session specifically (a ✓ marks it); click it again to go back to auto.
+
+Under the hood each session writes its own state file and the app aggregates them, so the display stays accurate no matter how many sessions you have open.
 
 ## Requirements
 

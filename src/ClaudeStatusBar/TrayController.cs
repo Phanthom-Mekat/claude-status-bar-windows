@@ -103,7 +103,7 @@ public class TrayController : ApplicationContext
         int idx = 2; // after [0] header + [1] separator
         void Insert(ToolStripItem it) { _menu.Items.Insert(idx++, it); _sessionRows.Add(it); }
 
-        Insert(new ToolStripMenuItem(_pinnedSid == null ? "Sessions" : "Sessions (following one — click to unpin)") { Enabled = false });
+        Insert(new ToolStripMenuItem(_pinnedSid == null ? "Sessions" : "Sessions (watching one · auto when idle)") { Enabled = false });
         int shown = 0;
         foreach (var s in sessions)
         {
@@ -192,11 +192,13 @@ public class TrayController : ApplicationContext
         var (st, active) = _agg.Read();
         _activeCount = active;
 
-        // If the user pinned a session from the menu, follow it instead of the auto "busiest".
+        // Smart pin: follow the selected session while it's active; if it's idle, fall back to the auto
+        // "busiest" so you never stare at "idle" while another session works; snap back when it resumes.
         if (_pinnedSid != null)
         {
             var pinned = _agg.LiveSessions().FirstOrDefault(s => s.SessionId == _pinnedSid);
-            if (pinned != null) st = pinned; else _pinnedSid = null; // pinned session ended -> back to auto
+            if (pinned == null) _pinnedSid = null;                          // pinned session ended -> auto
+            else if (pinned.State is not ("idle" or "done")) st = pinned;   // active -> show it; else leave auto-busiest
         }
 
         Evaluate(st);
