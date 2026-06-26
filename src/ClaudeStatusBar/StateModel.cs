@@ -17,5 +17,8 @@ public record StatusState(
     /// so existing 8-arg constructor calls keep working; deserialized from the "cwd" field.</summary>
     [JsonPropertyName("cwd")] public string Cwd { get; init; } = "";
 
+    /// <summary>Short human title for the session (its first user message), like the IDE tab name.</summary>
+    [JsonPropertyName("name")] public string Name { get; init; } = "";
+
     public static StatusState Idle => new("idle", "", "", "", "", "", 0, 0);
 }

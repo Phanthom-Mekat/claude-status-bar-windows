@@ -132,9 +132,9 @@ public class TrayController : ApplicationContext
             "waiting" => "Waiting",
             _ => "idle",
         };
-        string proj = string.IsNullOrEmpty(s.Project) ? "—" : s.Project;
+        string who = !string.IsNullOrEmpty(s.Name) ? s.Name : (string.IsNullOrEmpty(s.Project) ? "—" : s.Project);
         string t = (s.State is "tool" or "thinking") && s.StartedAt > 0 ? "  ·  " + Elapsed(s.StartedAt) : "";
-        return $"{proj}  ·  {st}{t}";
+        return $"{who}  ·  {st}{t}";
     }
 
     static ToolStripMenuItem Section(string title) => new(title) { Enabled = false };
@@ -275,8 +275,9 @@ public class TrayController : ApplicationContext
         var full = status + suffix;
         _tray.Text = full.Length > 63 ? full[..63] : full;
 
-        // Keep the pill short: show the project only when >1 session is active (to disambiguate); no "+N".
-        string proj = (active && sessions > 1) ? Short(s.Project, 16) : "";
+        // Keep the pill short: show the session name only when >1 session is active (to disambiguate); no "+N".
+        string who = !string.IsNullOrEmpty(s.Name) ? s.Name : s.Project;
+        string proj = (active && sessions > 1) ? Short(who, 16) : "";
         _pill?.SetText(active ? status : "", proj, (_cfg.ShowTimer && active) ? _startedAt : 0, eff == "permission");
     }
 

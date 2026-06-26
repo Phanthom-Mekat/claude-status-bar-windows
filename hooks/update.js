@@ -42,6 +42,32 @@ function launchIfNeeded() {
   } catch {}
 }
 
+
+function sessionName(transcriptPath) {
+  let fd;
+  try {
+    fd = fs.openSync(transcriptPath, "r");
+    const b = Buffer.alloc(65536);
+    const n = fs.readSync(fd, b, 0, b.length, 0);
+    for (const ln of b.toString("utf8", 0, n).split("\n")) {
+      const s = ln.trim(); if (!s) continue;
+      let o; try { o = JSON.parse(s); } catch { continue; }
+      const m = o.message || o;
+      if ((m.role || o.type) !== "user") continue;
+      // A user turn may have several text blocks: injected context (<ide_...>, <system-reminder>, command
+      // output) plus the real typed text. Scan all blocks and pick the first that isn't a wrapper tag.
+      const blocks = typeof m.content === "string"
+        ? [m.content]
+        : Array.isArray(m.content) ? m.content.filter((x) => x && x.type === "text").map((x) => x.text) : [];
+      for (let t of blocks) {
+        t = (t || "").replace(/\s+/g, " ").trim();
+        if (t && !t.startsWith("<")) return t.slice(0, 24);
+      }
+    }
+  } catch {} finally { if (fd !== undefined) { try { fs.closeSync(fd); } catch {} } }
+  return "";
+}
+
 let raw = "";
 process.stdin.on("data", (d) => (raw += d));
 process.stdin.on("end", () => {
@@ -53,8 +79,15 @@ process.stdin.on("end", () => {
   }
 
   const sid = String(p.session_id || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 64);
-  let prev = {}; try { prev = JSON.parse(fs.readFileSync(statePath, "utf8")); } catch {}
+  // Prefer THIS session's own previous state (per-session file) so startedAt/name/project carry over
+  // correctly when sessions interleave; fall back to the global file.
+  let prev = {};
+  try { prev = JSON.parse(fs.readFileSync(sid ? path.join(sessDir, sid) : statePath, "utf8")); }
+  catch { try { prev = JSON.parse(fs.readFileSync(statePath, "utf8")); } catch {} }
   const project = p.cwd ? path.basename(p.cwd) : prev.project || "";
+  const transcript = p.transcript_path || prev.transcript || "";
+  let name = prev.name || "";
+  if (!name && transcript) name = sessionName(transcript); // first user message, read once then cached
   const ts = Math.floor(Date.now() / 1000);
   let state = "idle", label = "", startedAt = prev.startedAt || 0;
 
@@ -74,7 +107,7 @@ process.stdin.on("end", () => {
     default: return;
   }
 
-  const out = { state, label, tool: p.tool_name || "", project, cwd: p.cwd || prev.cwd || "", sessionId: p.session_id || "", transcript: p.transcript_path || prev.transcript || "", startedAt, ts };
+  const out = { state, label, tool: p.tool_name || "", project, name, cwd: p.cwd || prev.cwd || "", sessionId: p.session_id || "", transcript, startedAt, ts };
   const json = JSON.stringify(out);
   try {
     fs.mkdirSync(sessDir, { recursive: true });
