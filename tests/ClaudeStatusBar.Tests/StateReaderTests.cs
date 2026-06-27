@@ -40,14 +40,43 @@ public class StateReaderTests
     {
         var f = Path.Combine(TmpDir(), "t.jsonl");
         File.WriteAllText(f, new string('x', 20000) + "\n{\"text\":\"[Request interrupted by user]\"}\n");
-        Assert.True(StateReader.TranscriptInterrupted(f));
+        Assert.True(StateReader.TranscriptTurnEnded(f));
     }
 
     [Fact]
-    public void NoInterruptWhenAbsent()
+    public void DetectsUsageLimitInTail()
+    {
+        // Real Claude Code shape: an assistant message flagged isApiErrorMessage whose text says "limit".
+        var f = Path.Combine(TmpDir(), "t.jsonl");
+        File.WriteAllText(f, "{\"type\":\"assistant\",\"isApiErrorMessage\":true,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"You've hit your session limit, resets 10pm\"}]}}\n");
+        Assert.True(StateReader.TranscriptTurnEnded(f));
+    }
+
+    [Fact]
+    public void DetectsLimitFollowedByBookkeeping()
+    {
+        // The limit entry can be followed by a queue/bookkeeping line; still detected via the last-few scan.
+        var f = Path.Combine(TmpDir(), "t.jsonl");
+        File.WriteAllText(f,
+            "{\"type\":\"assistant\",\"isApiErrorMessage\":true,\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"You've hit your usage limit\"}]}}\n" +
+            "{\"type\":\"queue-operation\"}\n");
+        Assert.True(StateReader.TranscriptTurnEnded(f));
+    }
+
+    [Fact]
+    public void NoEndWhenAbsent()
     {
         var f = Path.Combine(TmpDir(), "t.jsonl");
         File.WriteAllText(f, "{\"text\":\"hello world\"}\n");
-        Assert.False(StateReader.TranscriptInterrupted(f));
+        Assert.False(StateReader.TranscriptTurnEnded(f));
+    }
+
+    [Fact]
+    public void NoEndWhenTextMerelyMentionsLimit()
+    {
+        // Ordinary assistant text about a rate limit must NOT count as a turn end (no isApiErrorMessage).
+        var f = Path.Combine(TmpDir(), "t.jsonl");
+        File.WriteAllText(f, "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"let me add a rate limit to the API\"}]}}\n");
+        Assert.False(StateReader.TranscriptTurnEnded(f));
     }
 }

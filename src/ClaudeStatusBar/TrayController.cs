@@ -163,7 +163,10 @@ public class TrayController : ApplicationContext
     {
         _pill = new OverlayPill(_cfg);
         _pill.Clicked = () => _pill!.ShowMenu(_menu);
-        _pill.CloseRequested = () => { _overlayItem.Checked = false; _cfg.ShowOverlay = false; _cfg.Save(); _pill?.Hide(); };
+        // × = dismiss for THIS run only: hide the pill and uncheck the menu item, but leave the saved
+        // preference ON (don't touch _cfg) so the overlay returns on next launch. The "Show text overlay"
+        // menu item is the permanent off-switch; re-checking it brings the pill back in this session too.
+        _pill.CloseRequested = () => { _overlayItem.Checked = false; _pill?.Hide(); };
         _pill.Show();
     }
     void ToggleOverlay()
@@ -236,7 +239,7 @@ public class TrayController : ApplicationContext
         if (eff is "thinking" or "tool" or "permission")
         {
             if (now - s.Ts > 900) { eff = "idle"; label = ""; }
-            else if (!string.IsNullOrEmpty(s.Transcript) && StateReader.TranscriptInterrupted(s.Transcript)) { eff = "idle"; label = ""; }
+            else if (!string.IsNullOrEmpty(s.Transcript) && StateReader.TranscriptTurnEnded(s.Transcript)) { eff = "idle"; label = ""; }
         }
 
         // completion chime: a turn that ran >= 60s transitions to "done"

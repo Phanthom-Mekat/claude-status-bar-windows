@@ -90,7 +90,7 @@ public class SessionAggregator
         if (s.State is "thinking" or "tool" or "permission")
         {
             if (now - s.Ts > StaleSec) return s with { State = "idle", Label = "" };
-            if (!string.IsNullOrEmpty(s.Transcript) && StateReader.TranscriptInterrupted(s.Transcript))
+            if (!string.IsNullOrEmpty(s.Transcript) && StateReader.TranscriptTurnEnded(s.Transcript))
                 return s with { State = "idle", Label = "" };
         }
         return s;

@@ -19,10 +19,12 @@ public class OverlayPill : Form
 
     readonly AppSettings _cfg;
     readonly Font _font = new("Segoe UI", 9.5f, FontStyle.Regular);
+    readonly Font _mono = MonoFont(8.75f);   // terminal-style face for the timer (tabular digits → no per-second jitter)
     readonly System.Windows.Forms.Timer _tick = new() { Interval = 1000 };
     string _label = "", _project = "";
     long _startedAt;
     bool _permission;
+    bool _hover;
     Bitmap? _icon;
 
     Point _dragStartScreen, _formStartLoc;
@@ -97,7 +99,10 @@ public class OverlayPill : Form
         int mainW = TextRenderer.MeasureText(Main, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
         int projW = string.IsNullOrEmpty(_project) ? 0 : TextRenderer.MeasureText("  ·  " + _project, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
         var t = TimerText();
-        int timerW = t.Length == 0 ? 0 : TextRenderer.MeasureText("  " + t, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
+        // Reserve a fixed mono slot (≥ "00m 00s") so ticking digits never resize/reflow the pill.
+        int timerW = t.Length == 0 ? 0 : Math.Max(
+            TextRenderer.MeasureText("  " + t, _mono, Size.Empty, TextFormatFlags.NoPadding).Width,
+            TextRenderer.MeasureText("  00m 00s", _mono, Size.Empty, TextFormatFlags.NoPadding).Width);
         int w = 10 + IconSz + 6 + mainW + projW + timerW + 6 + 22;
         ClientSize = new Size(Math.Max(w, 70), Math.Max(_font.Height + 10, 26));
         Invalidate();
@@ -106,11 +111,10 @@ public class OverlayPill : Form
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        using var path = new GraphicsPath();
-        int d = Math.Min(Height, 24);
-        path.AddArc(0, 0, d, d, 90, 180);
-        path.AddArc(Width - d, 0, d, d, 270, 180);
-        path.CloseFigure();
+        // Shape the window to the FULL-height stadium so the visible pill == the client area (was capped at
+        // 24px and top-anchored, which clipped the bottom edge and pushed text low). Uses the same helper as
+        // the ring so the two stay concentric.
+        using var path = Stadium(new Rectangle(0, 0, Width, Height));
         Region = new Region(path);
     }
 
@@ -142,10 +146,55 @@ public class OverlayPill : Form
         }
         var t = TimerText();
         if (t.Length > 0)
-            TextRenderer.DrawText(g, "  " + t, _font, new Point(x, y), DimCol, TextFormatFlags.NoPadding);
+        {
+            int my = (Height - _mono.Height) / 2; // mono metrics differ slightly — recentre vertically
+            TextRenderer.DrawText(g, "  " + t, _mono, new Point(x, my), DimCol, TextFormatFlags.NoPadding);
+        }
 
-        // close ×
-        TextRenderer.DrawText(g, "×", _font, new Point(Width - 18, y), DimCol, TextFormatFlags.NoPadding);
+        // close × — only on hover, and brighter than the dim meta so it reads as actionable
+        if (_hover)
+            TextRenderer.DrawText(g, "×", _font, new Point(Width - 18, y), TextCol, TextFormatFlags.NoPadding);
+
+        // state ring: orange = working, amber = permission, faint = idle. Brightens on hover (the lift cue).
+        DrawStateRing(g);
+    }
+
+    void DrawStateRing(Graphics g)
+    {
+        var c = RingColor();
+        int a = _hover ? 255 : (c.A == 255 ? 190 : c.A);
+        using var pen = new Pen(Color.FromArgb(a, c.R, c.G, c.B), _hover ? 1.6f : 1.3f);
+        // 1px inset all round so the full stroke (incl. the bottom) lands inside the window region.
+        using var path = Stadium(new Rectangle(1, 1, Math.Max(1, Width - 2), Math.Max(1, Height - 2)));
+        g.DrawPath(pen, path);
+    }
+
+    Color RingColor()
+    {
+        if (_permission) return Amber;
+        if (!string.IsNullOrEmpty(_label)) return Brand;   // anything non-idle has a label
+        return Color.FromArgb(75, 140, 140, 148);          // idle: faint definition only
+    }
+
+    static GraphicsPath Stadium(Rectangle r)
+    {
+        var p = new GraphicsPath();
+        int d = Math.Min(r.Height, r.Width); // full-height round caps = a true stadium (not capped at 24)
+        p.AddArc(r.X, r.Y, d, d, 90, 180);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 180);
+        p.CloseFigure();
+        return p;
+    }
+
+    // Prefer Cascadia Mono (ships with Win11 / Windows Terminal), then Cascadia Code, then Consolas (always present).
+    static Font MonoFont(float size)
+    {
+        foreach (var name in new[] { "Cascadia Mono", "Cascadia Code", "Consolas" })
+        {
+            try { new FontFamily(name).Dispose(); return new Font(name, size, FontStyle.Regular); }
+            catch (ArgumentException) { /* family not installed — try the next */ }
+        }
+        return new Font(FontFamily.GenericMonospace, size);
     }
 
     void RestorePosition()
@@ -186,6 +235,18 @@ public class OverlayPill : Form
         _down = false;
     }
 
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        _hover = true; Opacity = 1.0; Invalidate();
+    }
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (_down) return;                       // stay lifted while dragging
+        _hover = false; Opacity = 0.92; Invalidate();
+    }
+
     /// <summary>Show a context menu anchored at the cursor. Foregrounds this window first so the menu
     /// dismisses when you click elsewhere (a no-activate owner otherwise leaves it stuck open).</summary>
     public void ShowMenu(ContextMenuStrip menu)
@@ -211,4 +272,10 @@ public class OverlayPill : Form
     const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { _mono.Dispose(); _font.Dispose(); _tick.Dispose(); _icon?.Dispose(); }
+        base.Dispose(disposing);
+    }
 }

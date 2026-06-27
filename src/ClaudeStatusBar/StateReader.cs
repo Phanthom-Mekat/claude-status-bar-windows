@@ -31,8 +31,15 @@ public class StateReader
         return _last;
     }
 
-    /// <summary>True if the tail (~8 KB) of the transcript's last non-empty line marks a user interrupt.</summary>
-    public static bool TranscriptInterrupted(string transcriptPath)
+    /// <summary>True if the tail (~8 KB) of the transcript shows the turn ENDED with no Stop hook firing,
+    /// so a frozen thinking/tool state must drop to idle. Two such cases:
+    ///   • user interrupt — the last line marks "interrupted by user" (Esc / denied permission);
+    ///   • usage/session/rate limit — Claude Code writes an assistant message with isApiErrorMessage:true,
+    ///     e.g. "You've hit your session limit · resets 10pm". No Stop fires, so state.json freezes.
+    /// The isApiErrorMessage flag keeps this precise: ordinary text that merely mentions "limit" (code,
+    /// discussion) is ignored. The limit entry can be followed by a bookkeeping line, so we scan the last
+    /// few entries for it (the interrupt marker is only ever the final line).</summary>
+    public static bool TranscriptTurnEnded(string transcriptPath)
     {
         try
         {
@@ -40,9 +47,13 @@ public class StateReader
             long start = Math.Max(0, fs.Length - 8192);
             fs.Seek(start, SeekOrigin.Begin);
             using var sr = new StreamReader(fs, Encoding.UTF8);
-            var tail = sr.ReadToEnd();
-            var lastLine = tail.Split('\n').Where(l => l.Trim().Length > 0).LastOrDefault() ?? "";
-            return lastLine.Contains("interrupted by user", StringComparison.OrdinalIgnoreCase);
+            var lines = sr.ReadToEnd().Split('\n').Where(l => l.Trim().Length > 0).ToList();
+            if (lines.Count == 0) return false;
+            if (lines[^1].Contains("interrupted by user", StringComparison.OrdinalIgnoreCase)) return true;
+            foreach (var l in lines.Skip(Math.Max(0, lines.Count - 4)))
+                if (l.Contains("isApiErrorMessage", StringComparison.OrdinalIgnoreCase)
+                    && l.Contains("limit", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
         catch { return false; }
     }
