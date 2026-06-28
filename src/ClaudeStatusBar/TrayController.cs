@@ -163,10 +163,6 @@ public class TrayController : ApplicationContext
     {
         _pill = new OverlayPill(_cfg);
         _pill.Clicked = () => _pill!.ShowMenu(_menu);
-        // × = dismiss for THIS run only: hide the pill and uncheck the menu item, but leave the saved
-        // preference ON (don't touch _cfg) so the overlay returns on next launch. The "Show text overlay"
-        // menu item is the permanent off-switch; re-checking it brings the pill back in this session too.
-        _pill.CloseRequested = () => { _overlayItem.Checked = false; _pill?.Hide(); };
         _pill.Show();
     }
     void ToggleOverlay()

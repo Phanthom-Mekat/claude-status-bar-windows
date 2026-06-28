@@ -30,13 +30,9 @@ public class OverlayPill : Form
     Point _dragStartScreen, _formStartLoc;
     bool _down, _moved;
 
-    /// <summary>Click on the pill body (not a drag, not the ×).</summary>
     public Action? Clicked;
-    /// <summary>Click on the × — dismiss the overlay.</summary>
-    public Action? CloseRequested;
 
     int IconSz => _font.Height + 4;
-    Rectangle CloseRect => new(Width - 22, 0, 22, Height);
 
     public OverlayPill(AppSettings cfg)
     {
@@ -103,7 +99,7 @@ public class OverlayPill : Form
         int timerW = t.Length == 0 ? 0 : Math.Max(
             TextRenderer.MeasureText("  " + t, _mono, Size.Empty, TextFormatFlags.NoPadding).Width,
             TextRenderer.MeasureText("  00m 00s", _mono, Size.Empty, TextFormatFlags.NoPadding).Width);
-        int w = 10 + IconSz + 6 + mainW + projW + timerW + 6 + 22;
+        int w = 10 + IconSz + 6 + mainW + projW + timerW + 12;
         ClientSize = new Size(Math.Max(w, 70), Math.Max(_font.Height + 10, 26));
         Invalidate();
     }
@@ -150,10 +146,6 @@ public class OverlayPill : Form
             int my = (Height - _mono.Height) / 2; // mono metrics differ slightly — recentre vertically
             TextRenderer.DrawText(g, "  " + t, _mono, new Point(x, my), DimCol, TextFormatFlags.NoPadding);
         }
-
-        // close × — only on hover, and brighter than the dim meta so it reads as actionable
-        if (_hover)
-            TextRenderer.DrawText(g, "×", _font, new Point(Width - 18, y), TextCol, TextFormatFlags.NoPadding);
 
         // state ring: orange = working, amber = permission, faint = idle. Brightens on hover (the lift cue).
         DrawStateRing(g);
@@ -228,10 +220,7 @@ public class OverlayPill : Form
     {
         if (e.Button == MouseButtons.Right) { Clicked?.Invoke(); _down = false; return; }
         if (_down && !_moved && e.Button == MouseButtons.Left)
-        {
-            if (CloseRect.Contains(e.Location)) CloseRequested?.Invoke();
-            else Clicked?.Invoke();
-        }
+            Clicked?.Invoke();
         _down = false;
     }
 
