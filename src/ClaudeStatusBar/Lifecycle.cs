@@ -10,13 +10,24 @@ public class Lifecycle
     readonly AppSettings _cfg;
     readonly Action _quit;
     readonly Action<string>? _balloon;
-    readonly DateTime _launched = DateTime.UtcNow;
+    readonly Func<DateTime> _now;
+    readonly Func<bool>? _neededOverride; // test seam; null in production
+    readonly DateTime _launched;
+    readonly bool _firstRun;              // very first launch (no InstalledVersion saved yet)
     DateTime? _notNeededSince;
-    const int LaunchGraceSec = 5, IdleQuitSec = 3;
+    // First run gets a long grace so the user can find + pin the tray icon before self-quit can fire
+    // (otherwise a fresh install with no active session vanishes ~8s later). Normal runs resume the
+    // short grace; the next SessionStart relaunches us on demand as designed.
+    const int LaunchGraceSec = 5, IdleQuitSec = 3, FirstRunGraceSec = 180;
 
-    public Lifecycle(AppSettings cfg, Action quit, Action<string>? balloon = null)
+    public Lifecycle(AppSettings cfg, Action quit, Action<string>? balloon = null,
+                     Func<DateTime>? now = null, Func<bool>? needed = null)
     {
         _cfg = cfg; _quit = quit; _balloon = balloon;
+        _now = now ?? (() => DateTime.UtcNow);
+        _neededOverride = needed;
+        _launched = _now();
+        _firstRun = string.IsNullOrEmpty(_cfg.InstalledVersion);
     }
 
     public void OnStartup()
@@ -40,7 +51,7 @@ public class Lifecycle
             try
             {
                 HookInstaller.Install();
-                bool firstEver = string.IsNullOrEmpty(_cfg.InstalledVersion);
+                bool firstEver = _firstRun;
                 _cfg.InstalledVersion = ver; _cfg.Save();
                 Log.Write("hooks installed for v" + ver);
                 if (firstEver) FirstRunTip();
@@ -135,12 +146,16 @@ public class Lifecycle
     /// <summary>Quit when no session is active and Claude Desktop is closed, after a debounced grace.</summary>
     public void CheckLifecycle()
     {
-        if ((DateTime.UtcNow - _launched).TotalSeconds < LaunchGraceSec) return;
-        PruneOrphans();
-        bool needed = SessionCount() > 0 || ClaudeDesktopRunning() || RecentStateActivity(600);
+        int grace = _firstRun ? FirstRunGraceSec : LaunchGraceSec;
+        if ((_now() - _launched).TotalSeconds < grace) return;
+
+        bool needed;
+        if (_neededOverride != null) needed = _neededOverride();
+        else { PruneOrphans(); needed = SessionCount() > 0 || ClaudeDesktopRunning() || RecentStateActivity(600); }
+
         if (needed) { _notNeededSince = null; return; }
-        _notNeededSince ??= DateTime.UtcNow;
-        if ((DateTime.UtcNow - _notNeededSince.Value).TotalSeconds >= IdleQuitSec)
+        _notNeededSince ??= _now();
+        if ((_now() - _notNeededSince.Value).TotalSeconds >= IdleQuitSec)
         {
             Log.Write("self-quit (no sessions, no desktop)");
             _quit();

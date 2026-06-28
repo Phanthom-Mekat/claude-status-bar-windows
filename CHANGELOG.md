@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Releases are published on the [Releases](../../releases) page; the in-app updater checks them once a day.
 
+## [0.5.1] — 2026-06-28
+
+### Fixed
+- **Tray icon vanished moments after a first-time install.** A fresh install has no session marker, no `state.json`, and CLI-only users have no Claude Desktop running, so the "nobody needs me" self-quit fired ~8 s after install — the icon disappeared before the user could pin it (and before the "drag me to the tray" tip even finished showing), making the install look broken. The very first run now gets a 180 s grace before self-quit can fire; normal on-demand behavior resumes afterward.
+
 ## [0.5.0] — 2026-06-27
 
 ### Added
