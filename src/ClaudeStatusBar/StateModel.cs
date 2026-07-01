@@ -20,5 +20,9 @@ public record StatusState(
     /// <summary>Short human title for the session (its first user message), like the IDE tab name.</summary>
     [JsonPropertyName("name")] public string Name { get; init; } = "";
 
+    /// <summary>Pid of the session's host process (the Claude Code CLI, recorded at SessionStart), used to
+    /// walk up to the terminal/editor window for "Open Claude" / focus-this-session.</summary>
+    [JsonPropertyName("hostPid")] public int HostPid { get; init; } = 0;
+
     public static StatusState Idle => new("idle", "", "", "", "", "", 0, 0);
 }
