@@ -14,7 +14,22 @@ const event = process.argv[2];
 
 fs.mkdirSync(sessDir, { recursive: true });
 const safeId = (s) => String(s || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 64) || "unknown";
-const idleState = (id) => JSON.stringify({ state: "idle", label: "", tool: "", project: "", sessionId: id, transcript: "", startedAt: 0, ts: Math.floor(Date.now() / 1000) });
+const idleState = (id, hostPid) => JSON.stringify({ state: "idle", label: "", tool: "", project: "", sessionId: id, transcript: "", startedAt: 0, ts: Math.floor(Date.now() / 1000), hostPid: hostPid || 0 });
+
+// Claude Code invokes hooks via a transient shell (our direct parent exits once the hook returns), so
+// process.ppid alone is a dead pid by the time the user clicks a session later. Resolve one hop further
+// up to the long-lived Claude Code CLI process itself, which the app then walks up from (live) to find
+// the terminal/editor window to focus. Best-effort: falls back to the immediate parent on failure.
+function resolveHostPid() {
+  try {
+    const out = cp.execSync(
+      `powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${process.ppid}').ParentProcessId"`,
+      { stdio: ["ignore", "pipe", "ignore"] }
+    ).toString().trim();
+    const n = parseInt(out, 10);
+    return Number.isFinite(n) && n > 0 ? n : (process.ppid || 0);
+  } catch { return process.ppid || 0; }
+}
 
 // Host-agnostic running check (the app may run as ClaudeStatusBar.exe OR via "dotnet ...dll" under
 // Smart App Control, so we check by the pid the app recorded).
@@ -68,7 +83,7 @@ function run() {
   if (event === "start") {
     // If the app isn't running, leftover session files are stale (prior crash) -> clear them.
     if (!running()) { try { for (const f of fs.readdirSync(sessDir)) fs.rmSync(path.join(sessDir, f), { force: true }); } catch {} }
-    write(path.join(sessDir, id), idleState(id)); // fresh session starts idle (clears any stale same-id state)
+    write(path.join(sessDir, id), idleState(id, resolveHostPid())); // fresh session starts idle (clears any stale same-id state)
     clearStaleGlobal(id);
     launch();
   } else if (event === "end") {

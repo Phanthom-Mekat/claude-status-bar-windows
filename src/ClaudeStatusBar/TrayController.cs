@@ -171,10 +171,17 @@ public class TrayController : ApplicationContext
         else _pill?.Hide();
     }
 
+    // Focuses the terminal/editor window of the busiest live session (same one the icon follows), falling
+    // back to launching Claude Desktop only when there's no live session to jump to (or focusing it fails).
     void OpenClaude()
     {
         try
         {
+            var live = _agg.LiveSessions();
+            var target = (_pinnedSid != null ? live.FirstOrDefault(s => s.SessionId == _pinnedSid) : null)
+                         ?? live.FirstOrDefault();
+            if (target != null && WindowFocus.FocusSessionWindow(target.HostPid)) return;
+
             var exe = Path.Combine(Paths.Home, "AppData", "Local", "AnthropicClaude", "claude.exe");
             if (File.Exists(exe)) Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
         }
