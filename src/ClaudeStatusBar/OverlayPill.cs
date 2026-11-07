@@ -34,6 +34,24 @@ public class OverlayPill : Form
 
     int IconSz => _font.Height + 4;
 
+    // ---- mascot (replaces the icon when on) ----
+    MascotMood? _mood;
+    readonly System.Windows.Forms.Timer _mascotTick = new() { Interval = 50 }; // runs only while the mood moves
+    readonly ToolTip _hoverTip = new() { InitialDelay = 400 };                  // the full text the pill truncates
+    int PillH => Math.Max(_font.Height + 10, _mood != null ? 30 : 26);       // a touch taller so it reads
+    int LeadW => _mood != null ? (int)((PillH - 2) * 1.3f) : IconSz;         // wider: room for its "!", "z", sparkles
+    int LeadX => _mood != null ? 6 : 10;
+
+    /// <summary>Show the mascot in <paramref name="mood"/> instead of the icon (null = icon).</summary>
+    public void SetMascot(MascotMood? mood)
+    {
+        if (_mood == mood) return;
+        bool resize = (_mood == null) != (mood == null);
+        _mood = mood;
+        if (mood is { } m && Mascot.Animated(m)) _mascotTick.Start(); else _mascotTick.Stop();
+        if (resize) Render(); else Invalidate();
+    }
+
     public OverlayPill(AppSettings cfg)
     {
         _cfg = cfg;
@@ -53,6 +71,7 @@ public class OverlayPill : Form
         MouseUp += OnUp;
         _tick.Tick += (_, _) => { ReassertTopmost(); Render(); };
         _tick.Start();
+        _mascotTick.Tick += (_, _) => { if (Visible) Invalidate(); };
 
         Render();
         RestorePosition();
@@ -69,20 +88,28 @@ public class OverlayPill : Form
     }
     protected override bool ShowWithoutActivation => true;
 
-    public void SetText(string label, string project, long startedAt, bool permission)
+    /// <param name="active">working or awaiting permission (drives the ring)</param>
+    /// <param name="showText">false = icon-only pill (plus the timer if it's on)</param>
+    public void SetText(string label, string project, long startedAt, bool permission, bool active, bool showText)
     {
+        if (_label == label && _project == project && _startedAt == startedAt && _permission == permission
+            && _active == active && _showText == showText) return; // called every poll; skip no-op relayouts
         _label = label; _project = project; _startedAt = startedAt; _permission = permission;
+        _active = active; _showText = showText;
+        _hoverTip.SetToolTip(this, string.IsNullOrEmpty(label) ? "Claude — idle" : string.IsNullOrEmpty(project) ? label : $"{label}  ·  {project}");
         Render();
     }
 
-    /// <summary>Set the live icon shown on the left (caller hands over ownership; we dispose the previous).</summary>
+    /// <summary>Set the live icon shown on the left. The IconRenderer cache owns it — never dispose here.</summary>
     public void SetIcon(Bitmap bmp)
     {
-        var old = _icon; _icon = bmp; old?.Dispose();
+        if (ReferenceEquals(_icon, bmp)) return;
+        _icon = bmp;
         Invalidate();
     }
 
-    string Main => string.IsNullOrEmpty(_label) ? "Claude — idle" : _label;
+    bool _active, _showText = true;
+    string Main => !_showText ? "" : string.IsNullOrEmpty(_label) ? "Claude — idle" : _label;
     string TimerText()
     {
         if (_startedAt <= 0) return "";
@@ -90,17 +117,35 @@ public class OverlayPill : Form
         return $"{s / 60}m {s % 60}s";
     }
 
+    // The pill is a glance, not a log: cap the status text and end it in "…" (the full text is in the tooltip
+    // and menu). Tighter when the project name also shows (2+ sessions), so the pill stays compact.
+    int MainMaxW => (int)((string.IsNullOrEmpty(_project) ? 210 : 150) * DeviceDpi / 96f);
+    int MainW => Main.Length == 0 ? 0 : Math.Min(MainMaxW, TextRenderer.MeasureText(Main, _font, Size.Empty, TextFormatFlags.NoPadding).Width);
+
     void Render()
     {
-        int mainW = TextRenderer.MeasureText(Main, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
-        int projW = string.IsNullOrEmpty(_project) ? 0 : TextRenderer.MeasureText("  ·  " + _project, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
+        int mainW = MainW;
+        int projW = string.IsNullOrEmpty(_project) || !_showText ? 0 : TextRenderer.MeasureText("  ·  " + _project, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
         var t = TimerText();
         // Reserve a fixed mono slot (≥ "00m 00s") so ticking digits never resize/reflow the pill.
         int timerW = t.Length == 0 ? 0 : Math.Max(
             TextRenderer.MeasureText("  " + t, _mono, Size.Empty, TextFormatFlags.NoPadding).Width,
             TextRenderer.MeasureText("  00m 00s", _mono, Size.Empty, TextFormatFlags.NoPadding).Width);
-        int w = 10 + IconSz + 6 + mainW + projW + timerW + 12;
-        ClientSize = new Size(Math.Max(w, 70), Math.Max(_font.Height + 10, 26));
+        int h = PillH;
+        int w = mainW + projW + timerW == 0
+            ? Math.Max(h, LeadW + 2 * LeadX)                        // icon-only: a circle (or a short capsule)
+            : LeadX + LeadW + 6 + mainW + projW + timerW + 12;
+        var size = new Size(mainW + projW + timerW == 0 ? w : Math.Max(w, 70), h);
+        if (ClientSize != size)
+        {
+            // Grow away from the nearest screen edge: parked on the right half (the default, by the clock) keeps
+            // its right edge fixed so it never slides off-screen; on the left half it keeps its left edge.
+            int right = Location.X + Width;
+            var wa = Screen.FromControl(this).WorkingArea;
+            bool anchorRight = IsHandleCreated && Location.X + Width / 2 > wa.Left + wa.Width / 2;
+            ClientSize = size;
+            if (anchorRight) Location = new Point(right - Width, Location.Y);
+        }
         Invalidate();
     }
 
@@ -123,18 +168,24 @@ public class OverlayPill : Form
         g.Clear(Bg);
 
         int y = (Height - _font.Height) / 2;
-        int x = 10;
+        int x = Main.Length == 0 && TimerText().Length == 0 ? (Width - LeadW) / 2 : LeadX; // icon-only: centred
 
-        // live icon (or fallback spark glyph)
-        if (_icon != null) g.DrawImage(_icon, x, (Height - IconSz) / 2, IconSz, IconSz);
+        // mascot, else the live icon (or fallback spark glyph)
+        if (_mood is { } mood) Mascot.Draw(g, new RectangleF(x, 1, LeadW, Height - 2), mood, Environment.TickCount64 / 1000.0);
+        else if (_icon != null) g.DrawImage(_icon, x, (Height - IconSz) / 2, IconSz, IconSz);
         else TextRenderer.DrawText(g, "✻", _font, new Point(x, y), _permission ? Amber : Brand, TextFormatFlags.NoPadding);
-        x += IconSz + 6;
+        x += LeadW + 6;
 
         var mainColor = _permission ? Amber : TextCol;
-        TextRenderer.DrawText(g, Main, _font, new Point(x, y), mainColor, TextFormatFlags.NoPadding);
-        x += TextRenderer.MeasureText(Main, _font, Size.Empty, TextFormatFlags.NoPadding).Width;
+        if (Main.Length > 0)
+        {
+            int w = MainW;
+            TextRenderer.DrawText(g, Main, _font, new Rectangle(x, y, w, _font.Height), mainColor,
+                TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+            x += w;
+        }
 
-        if (!string.IsNullOrEmpty(_project))
+        if (!string.IsNullOrEmpty(_project) && _showText)
         {
             var proj = "  ·  " + _project;
             TextRenderer.DrawText(g, proj, _font, new Point(x, y), DimCol, TextFormatFlags.NoPadding);
@@ -164,7 +215,7 @@ public class OverlayPill : Form
     Color RingColor()
     {
         if (_permission) return Amber;
-        if (!string.IsNullOrEmpty(_label)) return Brand;   // anything non-idle has a label
+        if (_active) return Brand;
         return Color.FromArgb(75, 140, 140, 148);          // idle: faint definition only
     }
 
@@ -264,7 +315,7 @@ public class OverlayPill : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _mono.Dispose(); _font.Dispose(); _tick.Dispose(); _icon?.Dispose(); }
+        if (disposing) { _mono.Dispose(); _font.Dispose(); _tick.Dispose(); _mascotTick.Dispose(); _hoverTip.Dispose(); } // _icon belongs to the IconRenderer cache
         base.Dispose(disposing);
     }
 }

@@ -41,8 +41,10 @@ public class Lifecycle
             // even under Smart App Control), else the exe. The pid lets hooks detect "running" host-agnostically.
             File.WriteAllText(Paths.AppPathTxt, Path.Combine(AppContext.BaseDirectory, "ClaudeStatusBar.exe"));
             File.WriteAllText(Paths.AppPidTxt, Environment.ProcessId.ToString());
+            File.Delete(Paths.QuitIntent); // launching us (by hand or via SessionStart) voids a prior Quit
         }
         catch (Exception e) { Log.Write("apppath write failed: " + e.Message); }
+        Updater.CleanupOld(AppContext.BaseDirectory); // files a self-update moved aside last run
 
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0";
         _ = UpdateChecker.MaybeCheckAsync(_cfg, ver); // once/day; no-op until a repo is configured
@@ -55,6 +57,7 @@ public class Lifecycle
                 _cfg.InstalledVersion = ver; _cfg.Save();
                 Log.Write("hooks installed for v" + ver);
                 if (firstEver) FirstRunTip();
+                else _balloon?.Invoke($"Updated to v{Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}.");
             }
             catch (Exception e)
             {
@@ -78,7 +81,18 @@ public class Lifecycle
     // NOT the Claude Code CLI — which also runs as a process named "claude" (from the VS Code
     // extension / native binary). Matching the bare name would keep us alive forever on a
     // CLI-only machine and break self-quit.
+    // Enumerating processes + MainModule every 0.4 s poll is wasteful; desktop launch/quit is rare, so a
+    // few seconds of staleness only delays a self-quit (the debounce re-checks), never quits under a live app.
+    static DateTime _desktopCheckedAt = DateTime.MinValue;
+    static bool _desktopCached;
     public static bool ClaudeDesktopRunning()
+    {
+        if ((DateTime.UtcNow - _desktopCheckedAt).TotalSeconds < 5) return _desktopCached;
+        _desktopCheckedAt = DateTime.UtcNow;
+        return _desktopCached = ScanForDesktop();
+    }
+
+    static bool ScanForDesktop()
     {
         try
         {

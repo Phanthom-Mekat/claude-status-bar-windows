@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔧 Troubleshooting Guide
+    url: https://github.com/Phanthom-Mekat/claude-status-bar-windows/blob/main/TROUBLESHOOTING.md
+    about: Common issues and how to fix them
+  - name: 🍎 On macOS?
+    url: https://github.com/m1ckc3s/claude-status-bar
+    about: This is the Windows port. The original macOS menu bar app lives here.

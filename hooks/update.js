@@ -3,21 +3,35 @@
 //   ~/.claude/statusbar/state.json            (legacy single-state, last writer wins)
 //   ~/.claude/statusbar/sessions.d/<sid>       (this session's own state — the app aggregates these)
 // Windows-hardened rename (MoveFileEx is not atomic, throws EPERM/EACCES on a lock -> retry, then drop).
-// On a new prompt, relaunches the app if it was quit. Usage: node update.js <prompt|pre|post|notify|permreq|stop>
+// Relaunches the app on any event if it isn't running (unless the user chose Quit).
+// Usage: node update.js <prompt|pre|post|notify|permreq|stop>
 const fs = require("fs"), os = require("os"), path = require("path"), cp = require("child_process");
 const dir = path.join(os.homedir(), ".claude", "statusbar");
 const sessDir = path.join(dir, "sessions.d");
 const statePath = path.join(dir, "state.json");
 const appPathFile = path.join(dir, "apppath.txt");
 const appPidFile = path.join(dir, "apppid.txt");
+// Written by the app's Quit menu item; suppresses the relaunch below so Quit sticks.
+// lifecycle.js removes it on the next SessionStart (a new session = fresh consent).
+const quitMarker = path.join(dir, "quit-intent");
 const event = process.argv[2] || "";
-const EXE = "ClaudeStatusBar.exe";
 
 const TOOL_LABELS = {
   Bash: "Running command", Edit: "Editing", Write: "Writing", MultiEdit: "Editing",
   NotebookEdit: "Editing", Read: "Reading", Grep: "Searching", Glob: "Searching",
   WebFetch: "Browsing web", WebSearch: "Searching web", Task: "Delegating", TodoWrite: "Planning",
 };
+
+// "Editing TrayController.cs" / "Build the app" — what, not just which tool. Short, so the pill stays small.
+// Bash descriptions are already actions ("Build the app"), so they go in bare — no "Running:" prefix.
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+function toolLabel(tool, input) {
+  const base = TOOL_LABELS[tool] || "Using tool";
+  const file = input.file_path || input.notebook_path;
+  if (file) return base + " " + clip(path.basename(String(file)), 28);
+  if (tool === "Bash" && input.description) return clip(String(input.description).replace(/\s+/g, " ").trim(), 32);
+  return base;
+}
 
 function sleep(ms) { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch {} }
 
@@ -30,26 +44,42 @@ function writeAtomic(file, data) {
   }
 }
 
-// Relaunch the app if it was quit (only called on a new prompt, so ~once per turn — cheap).
-// Detect "running" by the recorded pid (host-agnostic), and launch via the dotnet host when a .dll
-// exists so it works even under Smart App Control (which blocks our unsigned exe).
+// process.kill(pid, 0) is an existence probe on Windows too — no tasklist spawn, so it's cheap enough
+// to run on every hook event. ponytail: a reused pid reads as "running" until the next app launch
+// rewrites apppid.txt; check the process name if that ever bites.
+function appRunning() {
+  try { const pid = parseInt(fs.readFileSync(appPidFile, "utf8"), 10); if (pid > 0) { process.kill(pid, 0); return true; } } catch {}
+  return false;
+}
+
+// The app binary (dll under the trusted dotnet host when present: runs under Smart App Control).
+function appCommand(extra) {
+  const exe = fs.readFileSync(appPathFile, "utf8").trim();
+  const dll = /\.exe$/i.test(exe) ? exe.replace(/\.exe$/i, ".dll") : ""; // Linux binary has no .exe/.dll pair
+  return dll && fs.existsSync(dll) ? ["dotnet", [dll, ...extra]] : [exe, extra];
+}
+
+// Self-heal: a session with live state but no app to show it relaunches the app. Covers
+// install-while-a-session-is-open (that session never fires SessionStart) and a killed/crashed app.
 function launchIfNeeded() {
   try {
-    if (!fs.existsSync(appPathFile)) return;
-    try {
-      const pid = fs.readFileSync(appPidFile, "utf8").trim();
-      if (pid) {
-        const o = cp.execSync(`tasklist /FI "PID eq ${pid}" /NH`, { stdio: ["ignore", "pipe", "ignore"] }).toString();
-        if (o.trim().length > 0 && !o.toLowerCase().includes("no tasks")) return; // already running
-      }
-    } catch {}
-    const exe = fs.readFileSync(appPathFile, "utf8").trim();
-    const dll = exe.replace(/\.exe$/i, ".dll");
-    if (fs.existsSync(dll)) cp.spawn("dotnet", [dll], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    else if (exe && fs.existsSync(exe)) cp.spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
+    if (!fs.existsSync(appPathFile) || fs.existsSync(quitMarker) || appRunning()) return;
+    const [cmd, args] = appCommand([]);
+    cp.spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true }).unref();
   } catch {}
 }
 
+// This session's claude.exe pid, for liveness. Hooks run via Git Bash, so process.ppid is a
+// short-lived bash.exe — ask the app to walk the process tree from our (still alive) pid.
+// 0 = not resolvable yet (app never ran), -1 = tried and failed (don't retry every event).
+function claudePid() {
+  try {
+    if (!fs.existsSync(appPathFile)) return 0;
+    const [cmd, args] = appCommand(["--claude-pid", String(process.pid)]);
+    const n = parseInt(cp.execFileSync(cmd, args, { timeout: 5000, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).toString(), 10);
+    return n > 0 ? n : -1;
+  } catch { return -1; }
+}
 
 function sessionName(transcriptPath) {
   let fd;
@@ -92,6 +122,7 @@ process.stdin.on("end", () => {
   let prev = {};
   try { prev = JSON.parse(fs.readFileSync(sid ? path.join(sessDir, sid) : statePath, "utf8")); }
   catch { try { prev = JSON.parse(fs.readFileSync(statePath, "utf8")); } catch {} }
+  if (sid && prev.sessionId && prev.sessionId !== p.session_id) prev = {}; // global fallback was another session
   const project = p.cwd ? path.basename(p.cwd) : prev.project || "";
   const transcript = p.transcript_path || prev.transcript || "";
   let name = prev.name || "";
@@ -101,7 +132,7 @@ process.stdin.on("end", () => {
 
   switch (event) {
     case "prompt": state = "thinking"; label = "Thinking…"; startedAt = ts; break;
-    case "pre": { const t = p.tool_name || ""; state = "tool"; label = TOOL_LABELS[t] || "Using tool"; if (!startedAt) startedAt = ts; break; }
+    case "pre": { const t = p.tool_name || ""; state = "tool"; label = toolLabel(t, p.tool_input || {}); if (!startedAt) startedAt = ts; break; }
     case "post": state = "thinking"; label = "Thinking…"; if (!startedAt) startedAt = ts; break;
     case "notify": {
       const m = (p.message || "").toLowerCase();
@@ -115,7 +146,12 @@ process.stdin.on("end", () => {
     default: return;
   }
 
-  const out = { state, label, tool: p.tool_name || "", project, name, cwd: p.cwd || prev.cwd || "", sessionId: p.session_id || "", transcript, startedAt, ts };
+  // Resolved once per session (lifecycle.js usually did it at SessionStart), then carried over.
+  const pid = sid && prev.pid ? prev.pid : (sid ? claudePid() : 0);
+  // CLAUDE_CODE_ENTRYPOINT tags the surface ("cli", "claude-desktop", …); the app hides desktop
+  // conversations that were merely opened. started:true = this session has had real activity.
+  const entrypoint = process.env.CLAUDE_CODE_ENTRYPOINT || prev.entrypoint || "";
+  const out = { state, label, tool: p.tool_name || "", project, name, cwd: p.cwd || prev.cwd || "", sessionId: p.session_id || "", transcript, entrypoint, pid, started: true, startedAt, ts };
   const json = JSON.stringify(out);
   try {
     fs.mkdirSync(sessDir, { recursive: true });
@@ -123,5 +159,5 @@ process.stdin.on("end", () => {
     if (sid) writeAtomic(path.join(sessDir, sid), json);       // per-session state (app aggregates)
   } catch {}
 
-  if (event === "prompt") launchIfNeeded();
+  launchIfNeeded();
 });

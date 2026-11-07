@@ -24,4 +24,11 @@ if (logo[0]) fs.writeFileSync(path.join(OUT, "logo.png"), Buffer.from(logo[0], "
 const crab = b64s("CrabFrames.swift"); // Phase 2 style, extracted now for convenience
 crab.forEach((b, i) => fs.writeFileSync(path.join(OUT, `crab-${String(i).padStart(2, "0")}.png`), Buffer.from(b, "base64")));
 
-console.log(`extracted ${spark.length} spark frames, ${logo.length ? 1 : 0} logo, ${crab.length} crab frames -> ${OUT}`);
+// Orbit: vertical 48px-frame strips, named so IconRenderer can sequence them (en -> loop -> loop -> exit).
+const markSrc = path.join(SRC, "WorkingMarkFrames.swift");
+const mark = fs.existsSync(markSrc)
+  ? [...fs.readFileSync(markSrc, "utf8").matchAll(/let workingMarkStrip_(\w+) = "(iVBORw0KGgo[A-Za-z0-9+/=]*)"/g)]
+  : [];
+mark.forEach(([, name, b]) => fs.writeFileSync(path.join(OUT, `orbit-${name}.png`), Buffer.from(b, "base64")));
+
+console.log(`extracted ${spark.length} spark frames, ${logo.length ? 1 : 0} logo, ${crab.length} crab frames, ${mark.length} orbit strips -> ${OUT}`);

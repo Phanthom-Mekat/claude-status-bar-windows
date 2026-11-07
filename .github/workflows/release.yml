@@ -31,8 +31,16 @@ jobs:
       - name: Zip the app bundle
         run: Compress-Archive -Path out/* -DestinationPath ClaudeStatusBar.zip -Force
 
+      # Linux: self-contained x64 + arm64 tarballs (install.sh and the in-app updater download these)
+      - name: Build the Linux tarballs
+        shell: bash
+        run: sh linux/build.sh
+
       - name: Create / update the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ClaudeStatusBar.zip
+          files: |
+            ClaudeStatusBar.zip
+            linux/dist/ClaudeStatusBar-linux-x64.tar.gz
+            linux/dist/ClaudeStatusBar-linux-arm64.tar.gz
           generate_release_notes: true

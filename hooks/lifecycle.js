@@ -4,27 +4,23 @@
 // Windows port of the macOS lifecycle.js (no `open`/LaunchAgent). Usage: node lifecycle.js <start|end>
 const fs = require("fs"), os = require("os"), path = require("path"), cp = require("child_process");
 
-const EXE = "ClaudeStatusBar.exe";
 const dir = path.join(os.homedir(), ".claude", "statusbar");
 const sessDir = path.join(dir, "sessions.d");
 const statePath = path.join(dir, "state.json");
 const appPathFile = path.join(dir, "apppath.txt");
 const appPidFile = path.join(dir, "apppid.txt");
+const quitMarker = path.join(dir, "quit-intent");
 const event = process.argv[2];
 
 fs.mkdirSync(sessDir, { recursive: true });
 const safeId = (s) => String(s || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 64) || "unknown";
 const idleState = (id) => JSON.stringify({ state: "idle", label: "", tool: "", project: "", sessionId: id, transcript: "", startedAt: 0, ts: Math.floor(Date.now() / 1000) });
 
-// Host-agnostic running check (the app may run as ClaudeStatusBar.exe OR via "dotnet ...dll" under
-// Smart App Control, so we check by the pid the app recorded).
+// Host-agnostic running check by the pid the app recorded (it may run as ClaudeStatusBar.exe OR via
+// "dotnet ...dll" under Smart App Control). process.kill(pid, 0) is an existence probe on Windows.
 function running() {
-  try {
-    const pid = fs.readFileSync(appPidFile, "utf8").trim();
-    if (!pid) return false;
-    const o = cp.execSync(`tasklist /FI "PID eq ${pid}" /NH`, { stdio: ["ignore", "pipe", "ignore"] }).toString();
-    return o.trim().length > 0 && !o.toLowerCase().includes("no tasks");
-  } catch { return false; }
+  try { const pid = parseInt(fs.readFileSync(appPidFile, "utf8"), 10); if (pid > 0) { process.kill(pid, 0); return true; } } catch {}
+  return false;
 }
 
 function write(file, data) {
@@ -42,16 +38,30 @@ function clearStaleGlobal(id) {
   } catch {}
 }
 
-// Launch the app. Prefer the .dll via the Microsoft-signed dotnet host (runs even under Smart App
+// The app binary. Prefer the .dll via the Microsoft-signed dotnet host (runs even under Smart App
 // Control, which blocks our unsigned exe); fall back to the exe (signed/self-contained builds).
+function appCommand(extra) {
+  const exe = fs.readFileSync(appPathFile, "utf8").trim();
+  const dll = /\.exe$/i.test(exe) ? exe.replace(/\.exe$/i, ".dll") : ""; // Linux binary has no .exe/.dll pair
+  return dll && fs.existsSync(dll) ? ["dotnet", [dll, ...extra]] : [exe, extra];
+}
+
 function launch() {
   try {
-    if (!fs.existsSync(appPathFile)) return;
-    const exe = fs.readFileSync(appPathFile, "utf8").trim();
-    const dll = exe.replace(/\.exe$/i, ".dll");
-    if (fs.existsSync(dll)) cp.spawn("dotnet", [dll], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    else if (exe && fs.existsSync(exe)) cp.spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
+    if (!fs.existsSync(appPathFile) || running()) return;
+    const [cmd, args] = appCommand([]);
+    cp.spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true }).unref();
   } catch {}
+}
+
+// This session's claude.exe pid (see update.js claudePid): the app reaps the session when it dies.
+function claudePid() {
+  try {
+    if (!fs.existsSync(appPathFile)) return 0;
+    const [cmd, args] = appCommand(["--claude-pid", String(process.pid)]);
+    const n = parseInt(cp.execFileSync(cmd, args, { timeout: 5000, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).toString(), 10);
+    return n > 0 ? n : -1;
+  } catch { return -1; }
 }
 
 let input = "", done = false;
@@ -62,15 +72,23 @@ setTimeout(run, 1000);
 
 function run() {
   if (done) return; done = true;
-  let id = ""; try { id = JSON.parse(input).session_id; } catch {}
-  id = safeId(id);
+  let j = {}; try { j = JSON.parse(input); } catch {}
+  const id = safeId(j.session_id);
+  const cwd = j.cwd || "";
 
   if (event === "start") {
+    // A new session voids a prior explicit Quit (see update.js's relaunch suppress).
+    try { fs.rmSync(quitMarker, { force: true }); } catch {}
     // If the app isn't running, leftover session files are stale (prior crash) -> clear them.
     if (!running()) { try { for (const f of fs.readdirSync(sessDir)) fs.rmSync(path.join(sessDir, f), { force: true }); } catch {} }
-    write(path.join(sessDir, id), idleState(id)); // fresh session starts idle (clears any stale same-id state)
+    launch(); // first, so the icon appears while we resolve the pid
+    // Fresh session starts idle (clears any frozen same-id state from a resume). started:false keeps a
+    // merely-opened desktop conversation out of the menu until it has real activity (update.js flips it).
+    write(path.join(sessDir, id), JSON.stringify({
+      state: "idle", label: "", tool: "", project: cwd ? path.basename(cwd) : "", cwd, sessionId: id, transcript: j.transcript_path || "",
+      entrypoint: process.env.CLAUDE_CODE_ENTRYPOINT || "", pid: claudePid(), started: false, startedAt: 0, ts: Math.floor(Date.now() / 1000),
+    }));
     clearStaleGlobal(id);
-    launch();
   } else if (event === "end") {
     try { fs.rmSync(path.join(sessDir, id), { force: true }); } catch {}
     clearStaleGlobal(id);

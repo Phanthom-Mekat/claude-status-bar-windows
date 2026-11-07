@@ -1,0 +1,141 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior in Claude Status Bar for Windows
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill out the sections below to help us understand and fix the issue.
+
+        **Before submitting, please check:**
+        - You're using the [latest version](https://github.com/Phanthom-Mekat/claude-status-bar-windows/releases/latest)
+        - This issue hasn't already been reported by searching [existing issues](https://github.com/Phanthom-Mekat/claude-status-bar-windows/issues)
+        - This is a bug, not a feature request or support question
+
+        On macOS? Report it on the original [claude-status-bar](https://github.com/m1ckc3s/claude-status-bar/issues) instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight Checklist
+      description: Please confirm before submitting
+      options:
+        - label: I have searched [existing issues](https://github.com/Phanthom-Mekat/claude-status-bar-windows/issues) and the [known issues](https://github.com/Phanthom-Mekat/claude-status-bar-windows/blob/main/TROUBLESHOOTING.md#known-issues) and this hasn't been reported yet
+          required: true
+        - label: I have checked the [Troubleshooting guide](https://github.com/Phanthom-Mekat/claude-status-bar-windows/blob/main/TROUBLESHOOTING.md) and my issue isn't covered there
+          required: true
+        - label: This is a single bug report (please file separate reports for different bugs)
+          required: true
+        - label: I have Node.js on PATH (`node --version` prints a version)
+          required: true
+
+  - type: textarea
+    id: whats-wrong
+    attributes:
+      label: What's Wrong?
+      description: Describe what's happening that shouldn't be
+      placeholder: The tray icon disappears a few seconds after it appears.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-should-happen
+    attributes:
+      label: What Should Happen?
+      description: Describe the expected behavior
+      placeholder: The icon should stay in the system tray and show the current session status.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Open Claude Desktop (or run `claude` in a terminal)
+        2. Start a Claude Code session and write a prompt
+        3. The tray icon shows
+        4. The icon disappears while the session is still active
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Shown at the bottom of the tray icon's right-click menu (e.g. Version 0.4.0)
+      placeholder: e.g. 0.4.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install it?
+      options:
+        - One-line PowerShell installer (install.ps1)
+        - Manual (zip from Releases)
+        - Built from source
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      description: Run `winver` to see it
+      placeholder: e.g. Windows 11 24H2 (build 26100)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: smart-app-control
+    attributes:
+      label: Smart App Control
+      description: Windows Security → App & browser control → Smart App Control
+      options:
+        - "On"
+        - Evaluation
+        - "Off"
+        - Not sure
+    validations:
+      required: false
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where are you encountering this bug?
+      options:
+        - Claude Desktop (Code tab)
+        - In the terminal (CLI)
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal / shell
+      description: If you're in the terminal, which one are you using?
+      placeholder: e.g. Windows Terminal + PowerShell, VS Code terminal
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Optional. Set the `CLAUDE_STATUSBAR_DEBUG=1` environment variable, reproduce, then paste the relevant lines from `~/.claude/statusbar/app.log` and `~/.claude/statusbar/hooks.log`.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Anything else worth adding? Optional.
+      placeholder: Any other context, or let me know if you're happy to open a PR.
+    validations:
+      required: false

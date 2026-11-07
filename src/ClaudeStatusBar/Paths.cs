@@ -17,6 +17,9 @@ public static class Paths
     public static string AppPathTxt => Path.Combine(StatusbarDir, "apppath.txt");
     public static string AppPidTxt => Path.Combine(StatusbarDir, "apppid.txt");
     public static string AppSettingsJson => Path.Combine(StatusbarDir, "app-settings.json");
+    /// <summary>Written by Quit so the hooks' self-relaunch doesn't undo it; cleared by the next SessionStart
+    /// or a manual launch.</summary>
+    public static string QuitIntent => Path.Combine(StatusbarDir, "quit-intent");
     public static string ClaudeSettingsJson => Path.Combine(Home, ".claude", "settings.json");
 
     public static void EnsureDir() => Directory.CreateDirectory(StatusbarDir);

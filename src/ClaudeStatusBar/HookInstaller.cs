@@ -96,7 +96,7 @@ public static class HookInstaller
                     }
             File.WriteAllText(Paths.ClaudeSettingsJson, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
         }
-        foreach (var f in new[] { "update.js", "lifecycle.js", "apppath.txt" })
+        foreach (var f in new[] { "update.js", "lifecycle.js", "apppath.txt", "apppid.txt", "quit-intent", "completion.mp3" })
             try { File.Delete(Path.Combine(Paths.StatusbarDir, f)); } catch { }
     }
 

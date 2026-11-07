@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ClaudeStatusBar</AssemblyName>
+    <RootNamespace>ClaudeStatusBar</RootNamespace>
+    <!-- Keep in step with src/ClaudeStatusBar: both read the same InstalledVersion to decide on hook reinstall. -->
+    <Version>0.6.0</Version>
+    <Product>Claude Status Bar</Product>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <!-- No ICU dependency: we format nothing culture-specific, and minimal distros/containers lack libicu. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.20" />
+  </ItemGroup>
+
+  <!-- Platform-neutral logic is shared with the Windows app, not copied: a fix there lands here too. -->
+  <ItemGroup>
+    <Compile Include="..\src\ClaudeStatusBar\StateModel.cs" Link="Shared\StateModel.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\StateReader.cs" Link="Shared\StateReader.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\SessionAggregator.cs" Link="Shared\SessionAggregator.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\TurnTracker.cs" Link="Shared\TurnTracker.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\GitInfo.cs" Link="Shared\GitInfo.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\AppSettings.cs" Link="Shared\AppSettings.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\Paths.cs" Link="Shared\Paths.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\Log.cs" Link="Shared\Log.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\VersionCompare.cs" Link="Shared\VersionCompare.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\UpdateChecker.cs" Link="Shared\UpdateChecker.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\HookInstaller.cs" Link="Shared\HookInstaller.cs" />
+    <Compile Include="..\src\ClaudeStatusBar\EditorTrust.cs" Link="Shared\EditorTrust.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\src\ClaudeStatusBar\Resources\*.png" LinkBase="Resources" />
+    <EmbeddedResource Include="..\hooks\update.js" Link="hooks\update.js" />
+    <EmbeddedResource Include="..\hooks\lifecycle.js" Link="hooks\lifecycle.js" />
+    <!-- The macOS chime as WAV at 70% gain: pw-play/paplay/aplay all play WAV, none reliably play MP3. -->
+    <EmbeddedResource Include="Resources\completion.wav" />
+  </ItemGroup>
+</Project>

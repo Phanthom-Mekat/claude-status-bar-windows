@@ -9,13 +9,16 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>ClaudeStatusBar</AssemblyName>
     <RootNamespace>ClaudeStatusBar</RootNamespace>
-    <Version>0.5.1</Version>
+    <Version>0.6.0</Version>
     <Product>Claude Status Bar</Product>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Artwork (extracted from the macOS sources by tools/extract-assets.mjs) -->
     <EmbeddedResource Include="Resources\*.png" />
+    <!-- The macOS chime, played as-is through winmm MCI (no conversion needed). -->
+    <EmbeddedResource Include="Resources\completion.mp3" />
     <!-- Hook scripts embedded so the portable exe is self-sufficient; HookInstaller writes them out. -->
     <EmbeddedResource Include="..\..\hooks\update.js" Link="hooks\update.js" />
     <EmbeddedResource Include="..\..\hooks\lifecycle.js" Link="hooks\lifecycle.js" />

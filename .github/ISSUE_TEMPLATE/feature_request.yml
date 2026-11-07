@@ -1,0 +1,72 @@
+name: ✨ Feature Request
+description: Submit a new feature or enhancement for Claude Status Bar for Windows
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Thanks for suggesting a feature!
+
+        This is a tiny system-tray app, and I'd like to keep it that way. It does one thing: show Claude Code's live status. It stays local, free, and small.
+
+        It's a Windows port of the macOS [claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) and tries to behave the same way. The best feature requests add value for many users, not just one setup. Before submitting, please check the preflight checklist below.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight Checklist
+      description: Please confirm before submitting
+      options:
+        - label: I have searched existing requests and this feature hasn't been requested yet
+          required: true
+        - label: This is a single feature request (not multiple features)
+          required: true
+        - label: I have read [CONTRIBUTING.md](https://github.com/Phanthom-Mekat/claude-status-bar-windows/blob/main/CONTRIBUTING.md#wont-be-merged) and understand what won't be merged
+          required: true
+        - label: This feature would work for both Claude Desktop and terminal users
+          required: true
+        - label: This feature is for everybody, not just my own setup
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Why do you need this feature? Focus on the problem, not the solution. Help us understand your workflow.
+      placeholder: My tray icon is hidden in the ^ overflow, so I find it difficult to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work? Describe the ideal user experience. Be specific about how you'd interact with it.
+      placeholder: |
+        I'd like the floating pill to...
+        There should be a menu option that lets me...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to your workflow?
+      options:
+        - Critical - Blocking my work
+        - High - Significant impact on productivity
+        - Medium - Would be very helpful
+        - Low - Nice to have
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Anything else worth adding? Optional.
+      placeholder: Any other context, or let me know if you're happy to open a PR.
+    validations:
+      required: false

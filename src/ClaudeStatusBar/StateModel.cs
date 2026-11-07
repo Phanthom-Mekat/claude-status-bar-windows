@@ -20,5 +20,15 @@ public record StatusState(
     /// <summary>Short human title for the session (its first user message), like the IDE tab name.</summary>
     [JsonPropertyName("name")] public string Name { get; init; } = "";
 
+    /// <summary>The session's claude.exe pid (resolved by the hooks). &gt;0 = reap when it dies; 0/-1 = unknown,
+    /// fall back to the age prune.</summary>
+    [JsonPropertyName("pid")] public int Pid { get; init; }
+
+    /// <summary>CLAUDE_CODE_ENTRYPOINT: "cli", "claude-desktop", …</summary>
+    [JsonPropertyName("entrypoint")] public string Entrypoint { get; init; } = "";
+
+    /// <summary>False only for a merely-opened session (SessionStart seed). Missing = pre-upgrade file = true.</summary>
+    [JsonPropertyName("started")] public bool Started { get; init; } = true;
+
     public static StatusState Idle => new("idle", "", "", "", "", "", 0, 0);
 }

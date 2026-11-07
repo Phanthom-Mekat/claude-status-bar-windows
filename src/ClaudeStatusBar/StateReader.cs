@@ -31,6 +31,11 @@ public class StateReader
         return _last;
     }
 
+    // Transcripts only grow when text streams (seconds apart) but we ask every 0.4 s per working session,
+    // so cache the verdict by (mtime, length).
+    static readonly Dictionary<string, (DateTime mtime, long len, bool ended)> _turnCache = new();
+    static readonly object _turnLock = new();
+
     /// <summary>True if the tail (~8 KB) of the transcript shows the turn ENDED with no Stop hook firing,
     /// so a frozen thinking/tool state must drop to idle. Two such cases:
     ///   • user interrupt — the last line marks "interrupted by user" (Esc / denied permission);
@@ -43,18 +48,33 @@ public class StateReader
     {
         try
         {
-            using var fs = new FileStream(transcriptPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            long start = Math.Max(0, fs.Length - 8192);
-            fs.Seek(start, SeekOrigin.Begin);
-            using var sr = new StreamReader(fs, Encoding.UTF8);
-            var lines = sr.ReadToEnd().Split('\n').Where(l => l.Trim().Length > 0).ToList();
-            if (lines.Count == 0) return false;
-            if (lines[^1].Contains("interrupted by user", StringComparison.OrdinalIgnoreCase)) return true;
-            foreach (var l in lines.Skip(Math.Max(0, lines.Count - 4)))
-                if (l.Contains("isApiErrorMessage", StringComparison.OrdinalIgnoreCase)
-                    && l.Contains("limit", StringComparison.OrdinalIgnoreCase)) return true;
-            return false;
+            var fi = new FileInfo(transcriptPath);
+            if (!fi.Exists) return false;
+            lock (_turnLock)
+            {
+                if (_turnCache.TryGetValue(transcriptPath, out var hit) && hit.mtime == fi.LastWriteTimeUtc && hit.len == fi.Length)
+                    return hit.ended;
+                bool ended = ScanTail(transcriptPath);
+                if (_turnCache.Count > 256) _turnCache.Clear(); // bounded: one entry per live session in practice
+                _turnCache[transcriptPath] = (fi.LastWriteTimeUtc, fi.Length, ended);
+                return ended;
+            }
         }
         catch { return false; }
+    }
+
+    static bool ScanTail(string transcriptPath)
+    {
+        using var fs = new FileStream(transcriptPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        long start = Math.Max(0, fs.Length - 8192);
+        fs.Seek(start, SeekOrigin.Begin);
+        using var sr = new StreamReader(fs, Encoding.UTF8);
+        var lines = sr.ReadToEnd().Split('\n').Where(l => l.Trim().Length > 0).ToList();
+        if (lines.Count == 0) return false;
+        if (lines[^1].Contains("interrupted by user", StringComparison.OrdinalIgnoreCase)) return true;
+        foreach (var l in lines.Skip(Math.Max(0, lines.Count - 4)))
+            if (l.Contains("isApiErrorMessage", StringComparison.OrdinalIgnoreCase)
+                && l.Contains("limit", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 }
